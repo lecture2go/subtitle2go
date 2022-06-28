@@ -1,11 +1,12 @@
 /.vscode
+/__pycache__
 /models
-/subtitle2go_env
+/*env
 /pykaldi
+tmp*
 *.whl
 *.wav
 *.srt
 *.mp4
 *.vtt
 *.log
-*.txt

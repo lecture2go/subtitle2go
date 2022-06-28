@@ -2,7 +2,7 @@
 
 Subtitle2go is a fully automatic solution for German video subtitling, with a focus on lecture videos. The project uses open source models and scripts for German ASR, automatic punctuation reconstruction and subtitle segmentation. But it should be straight-forward to support other languages as well and PRs are welcome!
 
-Our German Kaldi models are based on the [kaldi-tuda-de](https://github.com/uhh-lt/kaldi-tuda-de) TDNN-HMM recipe. This is a Large Vocabulary Continuous Speech Recognition (LVCSR) model trained on 1000h of German speech data.
+Our German Kaldi models are based on the [kaldi-tuda-de](https://github.com/uhh-lt/kaldi-tuda-de) TDNN-HMM recipe. This is a Large Vocabulary Continuous Speech Recognition (LVCSR) model trained on about 1700h of German speech data.
 
 [Punctuator2](https://github.com/ottokart/punctuator2) is used for punctuation reconstruction (,.?!)
 
@@ -12,6 +12,10 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 
 ## News
 
+### 01.11.2021
+
+https://lecture2go.uni-hamburg.de/open-source is using subtitle2go in its production system!
+
 ### 03.03.2021
 + We presented Subtitle2Go at [ESSV2021](http://www.essv.de/essv2021/program/). You can check out our paper [here](http://www.essv.de/essv2021/pdfs/33_milde_v2.pdf) and [here (mirror)](https://www.inf.uni-hamburg.de/en/inst/ab/lt/publications/2021-mildeetal-subtitle.pdf).
 
@@ -20,22 +24,23 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 + Added a better subtitle segmentation algorithm
 
 ## Requirements
-+ Python 3.7
-+ Ubuntu 18.04 or 20.04
++ Python 3.9 (recommended), or Python 3.8/3.7
++ Ubuntu 20.04 (other versions may work as well)
++ X86_64 processor
 
 ## Installguide
 
 This installation guide installs all dependencies, scripts and downloads pre-trained models (Kaldi+punctuator2).
 
 ```
-# Ubuntu 18.04: make sure you have Python 3.7 installed and also its dev package:
+# Ubuntu: make sure you have Python 3.9, its dev package and ffmpeg installed:
 sudo apt-get update
-sudo apt-get install python3.7 python3.7-dev
+sudo apt-get install python3.9 python3.9-dev ffmpeg
 
-# Ubuntu 20.02: you need to activate the deadsnakes Python PPA, in order to install python 3.7
+# Ubuntu: if python3.9 is not available, you can activate the deadsnakes Python PPA, in order to install python 3.9 through this PPA
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt-get update
-sudo apt-get install python3.7 python3.7-dev
+sudo apt-get install python3.9 python3.9-dev
 
 # Now clone the subtitle2go package somwhere:
 mkdir ~/projects/
@@ -45,14 +50,15 @@ cd subtitle2go/
 
 # create virtual env and install python dependencies:
 
-virtualenv -p /usr/bin/python3.7 subtitle2go_env
+virtualenv -p /usr/bin/python3.9 subtitle2go_env
 source subtitle2go_env/bin/activate
-pip install numpy pyyaml ffmpeg-python theano spacy pdfplumber
-python -m spacy download de
+pip3 install -r requirements.txt
+python3 -m spacy download de_core_news_lg
+python3 -m spacy download en_core_web_lg
 
 # Now install PyKaldi
-wget http://ltdata1.informatik.uni-hamburg.de/pykaldi/pykaldi-0.1.2-cp37-cp37m-linux_x86_64.whl
-pip install pykaldi-0.1.2-cp37-cp37m-linux_x86_64.whl
+wget https://ltdata1.informatik.uni-hamburg.de/pykaldi/pykaldi-0.2.2-cp39-cp39-linux_x86_64.whl
+pip3 install pykaldi-0.2.2-cp39-cp39-linux_x86_64.whl
 
 # Install Kaldi and Intel MKL (see note below if you have a different CPU than Intel)
 
@@ -60,7 +66,7 @@ pip install pykaldi-0.1.2-cp37-cp37m-linux_x86_64.whl
 ./install_kaldi_intel.sh ~/projects/subtitle2go/subtitle2go_env/bin/python3
 
 # OR if you have a non-Intel CPU:
-install_kaldi.sh ~/projects/subtitle2go/subtitle2go_env/bin/python3
+./install_kaldi.sh ~/projects/subtitle2go/subtitle2go_env/bin/python3
 
 # Install punctuator2 for automatic punctuation
 git clone https://github.com/ottokart/punctuator2.git
@@ -72,26 +78,62 @@ Open punctuator2/models.py in a file editor, go to line 54 and replace "from . i
 # Download pretrained models:
 ./download_models.sh
 ```
+
+## Optional: redis status updates
+
+subtitle2go.py can optionally send status updates to a redis instance. You can either connect to the redis server channel "subtitle2go" directly and receive update events. Alternatively you can run event_server.py to get a HTTP API to poll the status of all past and current subtitle2go.py runs.
+
+The following packages only need to be installed if you want to use this feature. Subtitle2go.py will automatically figure out if the redis package is available and enables/disables the accordingly.
+
+```
+sudo apt-get redis-server
+```
+
+and on Mac Os X:
+
+```
+brew install redis
+```
+
+## Subtitle2go.py usage
+
 Put a mediafile (eg `mediafile.mp4`) in the directory and then run:
 
 ```
 source subtitle2go_env/bin/activate
 . path.sh
-python subtitle2go.py mediafile.mp4
+python3 subtitle2go.py mediafile.mp4
 ```
 
 The subtitle is then generated as `mediafile.vtt`
 
-The following options are available:
+Optional: If you want to send status updates of the processing to redis/event_server then you need to append --with-redis-updates to subtitle2go.py:
 
 ```
-usage: subtitle2go.py [-h] [-s {vtt,srt}] [--asr-beam-size ASR_BEAM_SIZE]
+python3 subtitle2go.py --with-redis-updates mediafile.mp4
+```
+
+If you start the wsgi server with ./start_eventserver_wsgi.sh then you can see status updates of every subtitle2go.py run at http://127.0.0.1:7500/status 
+
+You can also clear successful and failed runs with http://127.0.0.1:7500/clear 
+
+Redis server needs to be running.
+
+# Subtitle2go.py program arguments
+
+The following arguments are available:
+
+```
+usage: subtitle2go.py [-h] [-s {vtt,srt}] [-l LANGUAGE] [-m MODEL_YAML]
+                           [--rnn-rescore] [--acoustic scale ACOUSTIC_SCALE]
+                           [--asr-beam-size ASR_BEAM_SIZE]
                            [--asr-max-active ASR_MAX_ACTIVE]
                            [--segment-beam-size SEGMENT_BEAM_SIZE]
                            [--ideal-token-len IDEAL_TOKEN_LEN]
                            [--len-reward-factor LEN_REWARD_FACTOR]
                            [--sentence-end-reward_factor SENTENCE_END_REWARD_FACTOR]
                            [--comma-end-reward-factor COMMA_END_REWARD_FACTOR]
+                           [--with-redis-updates]
                            filename
 
 positional arguments:
@@ -122,6 +164,8 @@ optional arguments:
                         The weight of the comma end score in the search.
                         Higher values make it more likely to always split at
                         commas.
+  --with-redis-updates  Update a redis instance about the current progress.  
+                        (This option only shows up if the redis package is available)
 ```
 
 ## FAQ
@@ -145,23 +189,26 @@ and replace PATH_TO_KALDI with the path to your kaldi binaries (eg. pykaldi/tool
 
 ## References
 
-If you use Subtitle2Go in your academic work, please cite:
+If you use Subtitle2Go in your academic work, please cite [this paper](http://www.essv.de/essv2021/pdfs/33_milde_v2.pdf):
 
     @InProceedings{milde-etal-21-subtitle2go,
       author={Benjamin Milde and Robert Geislinger and Irina Lindt and Timo Baumann},
       title={Open Source Automatic Lecture Subtitling},
       booktitle={Proceedings of ESSV 2021},
       year={2021},
-      pages={128--134}
+      pages={128--134},
+      address={Virtual Berlin, Germany}
     }
 
-and optionally:
+and for the German ASR model:
 
     @InProceedings{milde-koehn-18-german-asr,
       author={Benjamin Milde and Arne K{\"o}hn},
       title={Open Source Automatic Speech Recognition for German},
       booktitle={Proceedings of ITG 2018},
       year={2018},
+      pages={251--255},
+      address={Oldenburg, Germany}
     }
 
 Thanks!
