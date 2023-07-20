@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#    Copyright 2022 HITeC e.V.
+#    Copyright 2022 HITeC e.V., Benjamin Milde and Robert Geislinger
 #
 #    Licensed under the Apache License, Version 2.0 (the 'License');
 #    you may not use this file except in compliance with the License.
@@ -15,19 +15,14 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from __future__ import print_function
-
-# Set Kaldi Path
 import os
-os.system('export KALDI_ROOT=kaldi')
-os.system('export LD_LIBRARY_PATH=$KALDI_ROOT/src/lib:$KALDI_ROOT/tools/openfst-1.6.7/lib:$LD_LIBRARY_PATH')
-os.system('export PATH=$KALDI_ROOT/src/lmbin/:$KALDI_ROOT/../kaldi_lm/:$PWD/utils/:$KALDI_ROOT/src/bin:$KALDI_ROOT/tools/openfst/bin:$KALDI_ROOT/src/fstbin/:$KALDI_ROOT/src/gmmbin/:$KALDI_ROOT/src/featbin/:$KALDI_ROOT/src/lm/:$KALDI_ROOT/src/sgmmbin/:$KALDI_ROOT/src/sgmm2bin/:$KALDI_ROOT/src/fgmmbin/:$KALDI_ROOT/src/latbin/:$KALDI_ROOT/src/nnetbin:$KALDI_ROOT/src/nnet2bin/:$KALDI_ROOT/src/online2bin/:$KALDI_ROOT/src/ivectorbin/:$KALDI_ROOT/src/kwsbin:$KALDI_ROOT/src/nnet3bin:$KALDI_ROOT/src/chainbin:$KALDI_ROOT/tools/sph2pipe_v2.5/:$KALDI_ROOT/src/rnnlmbin:$PWD:$PATH')
 
 # Load Kaldi
 from kaldi.asr import NnetLatticeFasterRecognizer, LatticeLmRescorer, LatticeRnnlmPrunedRescorer
 from kaldi.rnnlm import RnnlmComputeStateComputationOptions
 from kaldi.decoder import LatticeFasterDecoderOptions
 from kaldi.lat.functions import ComposeLatticePrunedOptions
+from kaldi.lat.align import read_lexicon_for_word_align
 from kaldi.fstext import SymbolTable, shortestpath, indices_to_symbols
 from kaldi.fstext.utils import get_linear_symbol_sequence
 from kaldi.nnet3 import NnetSimpleComputationOptions
@@ -36,37 +31,52 @@ from kaldi.lat import functions
 from kaldi.transform import cmvn
 
 # Audio Segmentation
-from simple_endpoiting import process_wav
+from simple_endpointing import process_wav
+
+# Interpunctuation
+from rpunct import RestorePuncts
 
 import yaml
-import math
 import argparse
 import ffmpeg
-import os
 import segment_text
 import slide_stripper
 import json
 import time
 import sys
 
+import requests
+
+
+
 start_time = time.time()
 
-try:
-    import redis
-    red = redis.StrictRedis(charset='utf-8', decode_responses=True)
-    redis_enabled = True
-except:
-    print('Redis is not available. Disabling redis option.')
-    redis_enabled = False
+kaldi_feature_factor = 3.00151874884282680911
 
-redis_server_channel = 'subtitle2go'
+class output_status():
+    def __init__(self, filename, fn_short_hash, redis=False):
+        if redis:
+            try:
+                import redis
+                self.red = redis.StrictRedis(charset='utf-8', decode_responses=True)
+            except ImportError:
+                print('Redis is not available. Disabling redis option.')
+                redis = False
 
-def publish_status(filename, filenameS_hash, status):
-    red.publish(redis_server_channel, json.dumps({'pid': os.getpid(), 'time': time.time(), 'start_time': start_time,
-                                                  'file_id': filenameS_hash, 'filename': filename,
-                                                  'status': status}))
+            self.redis_server_channel = 'subtitle2go'
+        self.redis = redis
 
-#make sure a fpath directory exists
+        self.filename = filename
+        self.fn_short_hash = fn_short_hash
+
+    def publish_status(self, status):
+        print(f'{filename=} {self.fn_short_hash=} {status=}')
+        if self.redis:
+            self.red.publish(self.redis_server_channel, json.dumps({'pid': os.getpid(), 'time': time.time(), 'start_time': start_time,
+                                                    'file_id': self.fn_short_hash, 'filename': self.filename,
+                                                    'status': status}))
+
+# Make sure a fpath directory exists
 def ensure_dir(fpath):
     directory = os.path.dirname(fpath)
     if not os.path.exists(directory):
@@ -74,7 +84,7 @@ def ensure_dir(fpath):
 
 
 def preprocess_audio(filename, wav_filename):
-    # use ffmpeg to convert the input media file (any format!) to 16 kHz wav mono
+    # Use ffmpeg to convert the input media file (any format!) to 16 kHz wav mono
     (
         ffmpeg
             .input(filename)
@@ -88,26 +98,21 @@ def recognizer(decoder_yaml_opts, models_dir):
     decoder_opts.beam = decoder_yaml_opts['beam']
     decoder_opts.max_active = decoder_yaml_opts['max-active']
     decoder_opts.lattice_beam = decoder_yaml_opts['lattice-beam']
-    
-    # Increase determinzation memory
-    # for long files we would otherwise get warnings like this: 
-    # 'Did not reach requested beam in determinize-lattice: size exceeds maximum 50000000 bytes'
-    # decoder_opts.det_opts.max_mem = 2100000000 #2.1gb, value has to be a 32 bit signed integer
+
     decodable_opts = NnetSimpleComputationOptions()
     decodable_opts.acoustic_scale = decoder_yaml_opts['acoustic-scale']
     decodable_opts.frame_subsampling_factor = 3 # decoder_yaml_opts['frame-subsampling-factor'] # 3
     decodable_opts.frames_per_chunk = 150
-    asr = NnetLatticeFasterRecognizer.from_files(
+    fr = NnetLatticeFasterRecognizer.from_files(
         models_dir + decoder_yaml_opts['model'],
         models_dir + decoder_yaml_opts['fst'],
         models_dir + decoder_yaml_opts['word-syms'],
         decoder_opts=decoder_opts, decodable_opts=decodable_opts)
-    
-    return asr
 
-# This is the main function that sets up the Kaldi decoder, loads the model and sets it up to decode the input file.
-def asr(filenameS_hash, filename, filenameS, asr_beamsize=13, asr_max_active=8000, acoustic_scale=1.0, lm_scale=0.5,
-         with_redis=False, do_rnn_rescore=False, config_file='models/kaldi_tuda_de_nnet3_chain2_de_722k.yaml'):
+    return fr
+
+# This method contains all Kaldi related calls and methods
+def Kaldi(config_file, scp_filename, spk2utt_filename, segments_filename, do_rnn_rescore, segments_timing, lm_scale, acoustic_scale):
 
     models_dir = 'models/'
 
@@ -116,59 +121,35 @@ def asr(filenameS_hash, filename, filenameS, asr_beamsize=13, asr_max_active=800
         model_yaml = yaml.safe_load(stream)
     decoder_yaml_opts = model_yaml['decoder']
 
+    # Construct recognizer
+    fr = recognizer(decoder_yaml_opts, models_dir)
+
     # Check if cmvn is set
-    cmvn_feats = False
+    cmvn_transformer = None
     if decoder_yaml_opts.get('global-cmvn-stats'):
-        cmvn_feats = True
         cmvn_transformer = cmvn.Cmvn(40)
         cmvn_transformer.read_stats(f'{models_dir}{decoder_yaml_opts["global-cmvn-stats"]}')
 
-    scp_filename = f'tmp/{filenameS_hash}.scp'
-    wav_filename = f'tmp/{filenameS_hash}.wav'
-    spk2utt_filename = f'tmp/{filenameS_hash}_spk2utt'
-
-    print('Extract audio.')
-    if with_redis:
-        publish_status(filename, filenameS_hash, 'Extract audio.')
-
-    preprocess_audio(filename, wav_filename)
-
-    print('Audio extracted.')
-    if with_redis:
-        publish_status(filename, filenameS_hash, 'Audio extracted.')
-
-    # Segmentation
-    segments_filenames, segments_timing = process_wav(wav_filename)
-
-    # write scp and spk2utt file
-    with open(scp_filename, 'w') as wavscp, open(spk2utt_filename, 'w') as spk2utt:
-        for segment in segments_filenames:
-            fn = segment.rpartition('.')[0]
-            wavscp.write(f'{fn} {segment}\n')
-            spk2utt.write(f'{filenameS_hash} {fn}\n')
-
-    # Construct recognizer
-    asr = recognizer(decoder_yaml_opts, models_dir)
-
     # Construct symbol table
     symbols = SymbolTable.read_text(models_dir + decoder_yaml_opts['word-syms'])
-    phi_label = symbols.find_index('#0')
-
+    
     # Define feature pipelines as Kaldi rspecifiers
-    feats_rspec = (f'ark:compute-mfcc-feats --config={models_dir}{decoder_yaml_opts["mfcc-config"]} scp:{scp_filename} ark:- |')
+    feats_rspec = (f'ark:extract-segments scp,p:{scp_filename} {segments_filename} ark:- | compute-mfcc-feats --config={models_dir}{decoder_yaml_opts["mfcc-config"]} ark:- ark:- |')
+    
     ivectors_rspec = (
-            (f'ark:compute-mfcc-feats --config={models_dir}{decoder_yaml_opts["mfcc-config"]} '
-            f'scp:{scp_filename} ark:- | '
+            (f'ark:extract-segments scp,p:{scp_filename} {segments_filename} ark:- | compute-mfcc-feats --config={models_dir}{decoder_yaml_opts["mfcc-config"]} '
+            f'ark:- ark:- | '
             f'ivector-extract-online2 --config={models_dir}{decoder_yaml_opts["ivector-extraction-config"]} '
             f'ark:{spk2utt_filename} ark:- ark:- |'))
-    rnn_rescore_available = 'rnnlm' in decoder_yaml_opts
     
+    
+    rnn_rescore_available = 'rnnlm' in decoder_yaml_opts
+
     if do_rnn_rescore and not rnn_rescore_available:
-        print("Warning, disabling RNNLM rescoring since 'rnnlm' is not in the decoder options of the .yaml config.")
+        status.publish_status("Warning, disabling RNNLM rescoring since 'rnnlm' is not in the decoder options of the .yaml config.")
 
     if do_rnn_rescore and rnn_rescore_available:
-        if with_redis:
-            publish_status(filename, filenameS_hash, 'Loading language model rescorer.')
+        status.publish_status('Loading language model rescorer.')
         rnn_lm_folder = models_dir + decoder_yaml_opts['rnnlm'] 
         arpa_G = models_dir + decoder_yaml_opts['arpa'] 
         old_lm = models_dir + decoder_yaml_opts['fst'] 
@@ -190,21 +171,19 @@ def asr(filenameS_hash, filename, filenameS, asr_beamsize=13, asr_max_active=800
             f'{rnn_lm_folder}/final.raw', lm_scale=lm_scale, acoustic_scale=acoustic_scale, max_ngram_order=4,
             use_const_arpa=True, opts=rnnlm_opts, compose_opts=compose_opts)
 
-    if with_redis:
-        publish_status(filename, filenameS_hash, 'ASR started.')
-
     did_decode = False
-    # Decode wav files
     decoding_results = []
-    try:
-        with SequentialMatrixReader(feats_rspec) as f, \
-                SequentialMatrixReader(ivectors_rspec) as i:
+
+    segmentcounter = 1
+    with SequentialMatrixReader(feats_rspec) as f, \
+            SequentialMatrixReader(ivectors_rspec) as i:
             for (fkey, feats), (ikey, ivectors) in zip(f, i):
-                if cmvn_feats:
+                status.publish_status(f'Decoding segment {segmentcounter} of {len(segments_timing)}.')
+                if cmvn_transformer:
                     cmvn_transformer.apply(feats)
                 did_decode = True
                 assert (fkey == ikey)
-                out = asr.decode((feats, ivectors))
+                out = fr.decode((feats, ivectors))
                 if do_rnn_rescore:
                     lat = rescorer.rescore(out['lattice'])
                 else:
@@ -213,114 +192,157 @@ def asr(filenameS_hash, filename, filenameS, asr_beamsize=13, asr_max_active=800
                 words, _, _ = get_linear_symbol_sequence(shortestpath(best_path))
                 timing = functions.compact_lattice_to_word_alignment(best_path)
                 decoding_results.append((words, timing))
-    except KeyboardInterrupt:
-        sys.exit()
+                segmentcounter+=1
 
-
-    # concatenating the results of the segments and adding an offset to the segments
+    # Concatenating the results of the segments and adding an offset to the segments
     words = []
     timing = [[],[],[]]
     for result in decoding_results:
         words.extend(result[0])
 
     for result, offset in zip(decoding_results, segments_timing):
-        # print(len(result))
-        timing[0].extend(result[1][0])
-        start = map(lambda x: x + (offset[0] / 3), result[1][1])
-        timing[1].extend(start)
-        timing[2].extend(result[1][2])
+        if result[1][1]:
+            timing[0].extend(result[1][0])
+            # start = map(lambda x: int(x + (offset[0] / kaldi_feature_factor)), result[1][1])
+            start = [x + (offset[0] / kaldi_feature_factor) for x in result[1][1]]
+            kaldi_time_to_seconds(offset[0] / kaldi_feature_factor, seperator=".")
+            kaldi_time_to_seconds(start[0], seperator=".")
 
-    if with_redis:
-        if did_decode:
-            publish_status(filename, filenameS_hash, 'ASR finished.')
-        else:
-            publish_status(filename, filenameS_hash, 'status')
-
-    assert(did_decode)
+            timing[1].extend(start)
+            timing[2].extend(result[1][2])
+    starting = 0
+    temp_timing = [[], [], []]
 
     # Maps words to the numbers
     words = indices_to_symbols(symbols, timing[0])
 
     # Creates the datastructure (Word, begin(Frames), end(Frames))
+    assert(len(words) == len(timing[1]))
+    assert(len(timing[1]) == len(timing[2]))
     vtt = list(map(list, zip(words, timing[1], timing[2])))
 
+    if debug_word_timing:
+        with open('debug_output.txt', 'w') as f:
+            for element in vtt:
+                f.write(f'{element[1]} {kaldi_time_to_seconds(element[1], ".")} {kaldi_time_to_seconds(element[1] + element[2], ".")} {element[2]} {element[0]}\n')
+
+    return vtt, did_decode, words
+
+# This is the asr function that converts the videofile, split the video into segments and decodes
+def asr(filenameS_hash, filename, asr_beamsize=13, asr_max_active=8000, acoustic_scale=1.0, lm_scale=0.5,
+         do_rnn_rescore=False, config_file='models/kaldi_tuda_de_nnet3_chain2_de_722k.yaml'):
+
+    print(f"{filenameS_hash=}")
+
+    scp_filename = f'tmp/{filenameS_hash}.scp'
+    segments_filename = f'tmp/{filenameS_hash}_segments'
+    wav_filename = f'tmp/{filenameS_hash}.wav'
+    spk2utt_filename = f'tmp/{filenameS_hash}_spk2utt'
+
+    # Audio extraction
+    status.publish_status('Extract audio.')
+    
+    try:
+        preprocess_audio(filename, wav_filename)
+    except ffmpeg.Error as e:
+        status.publish_status('Audio extraction failed.')
+        status.publish_status(f'Error message is: {e.stderr}')
+        send_error()
+        sys.exit(-1)
+
+    status.publish_status('Audio extracted.')
+
+    # Segmentation
+    status.publish_status('Audio segmentation.')
+
+    try:
+        segments_filenames, segments_timing = process_wav(wav_filename)
+    except Exception as e:
+        status.publish_status('Audio segmentation failed.')
+        status.publish_status(f'Error message is: {e}')
+        send_error()
+        sys.exit(-1)
+    
+    # Write scp and spk2utt file
+    with open(scp_filename, 'w') as wavscp, open(spk2utt_filename, 'w') as spk2utt:
+        # segmentFilename = wav_filename.rpartition('.')[0]
+        wavscp.write(f'{filenameS_hash} {wav_filename}\n')
+
+        for i in range(len(segments_timing)):
+            count_str = "%.4d" % i    
+            spk2utt.write(f'{filenameS_hash} {filenameS_hash}_{count_str}\n')
+
+    # Decode wav files
+    status.publish_status('Start ASR.')
+    vtt, did_decode, words = Kaldi(config_file, scp_filename, spk2utt_filename, segments_filename, do_rnn_rescore, segments_timing, lm_scale, acoustic_scale)
+    if did_decode:
+        status.publish_status('ASR finished.')
+    else:
+        status.publish_status('ASR error.')
+        send_error()
+        sys.exit(-1)
+
     # Cleanup tmp files
-    print(f'removing tmp file:{scp_filename}')
-    os.remove(scp_filename)
-    print(f'removing tmp file:{wav_filename}')
-    os.remove(wav_filename)
-    print(f'removing tmp file:{spk2utt_filename}')
-    os.remove(spk2utt_filename)
-    print(f'removing audio segments')
-    for file in segments_filenames:
-        print(f'removing {file=}')
-        os.remove(file)
+    try:
+        os.remove(scp_filename)
+        os.remove(wav_filename)
+        os.remove(spk2utt_filename)
+        os.remove(segments_filename)
+        status.publish_status(f'Removed temporary files: {scp_filename=}, {wav_filename=}, {spk2utt_filename=}, {segments_filename=}')
+    except Exception as e:
+        status.publish_status(f'Removing files failed.')
+        status.publish_status(f'Error message is: {e}')
+        send_error()
 
-
-    if with_redis:
-        if did_decode:
-            publish_status(filename, filenameS_hash, 'VTT finished.')
+    status.publish_status('VTT finished.')
 
     return vtt, words
 
 
 # Adds interpunctuation to the Kaldi output
-def interpunctuation(vtt, words, filename, filenameS_hash, model_punctuation, with_redis=False):
-    raw_filename = f'tmp/{filenameS_hash}_raw.txt'
-    token_filename = f'tmp/{filenameS_hash}_token.txt'
-    readable_filename = f'tmp/{filenameS_hash}_readable.txt'
-    
-    print('Starting interpunctuation')
-   
-    if with_redis:
-        publish_status(filename, filenameS_hash, 'Starting interpunctuation.')
+def interpunctuation(vtt, words, filenameS_hash, model_punctuation, uppercase):
 
-    # Input file for Punctuator2
-    raw_file = open(raw_filename, 'w')
-    raw_file.write(' '.join(words))
-    raw_file.close()
+    status.publish_status('Starting interpunctuation.')
 
-    # Starts Punctuator2 to add interpunctuation
-    os.system(f'./punctuator.sh {raw_filename} {model_punctuation} {token_filename} {readable_filename}')
-    
-    try:
-        file_punct = open(readable_filename, 'r')
-    except:
-        print('Running punctuator failed. Exiting.')
-        if with_redis:
-            publish_status(filename, filenameS_hash, 'Adding interpunctuation failed.')
-        sys.exit(-2)
+    # BERT
+    text = str(' '.join(words))
+    if uppercase:
+        text = text.lower()
+    rpunct = RestorePuncts(model=model_punctuation)
 
-    punct_list = file_punct.read().split(' ')
+    punct = rpunct.punctuate(text)
+    punct = punct.replace('.', '. ').replace(',', ', ').replace('!', '! ').replace('?', '? ')
+    punct = punct.replace('  ', ' ')
+    punct_list = punct.split(' ')
+
+    # punct_list = file_punct.read().split(' ')
     vtt_punc = []
     for a, b in zip(punct_list, vtt):  # Replaces the adapted words with the (capitalization, period, comma) with the new ones
-        if a != b[0]:
-            vtt_punc.append([a, b[1], b[2]])
-        else:
-            vtt_punc.append(b)
-    
-    # Cleanup tmp files
-    print(f'removing tmp file:{raw_filename}')
-    os.remove(raw_filename)
-    print(f'removing tmp file:{token_filename}')
-    os.remove(token_filename)
-    print(f'removing tmp file:{readable_filename}')
-    os.remove(readable_filename)
+        vtt_punc.append([a, b[1], b[2]])
 
-    if with_redis:
-        publish_status(filename, filenameS_hash, 'Adding interpunctuation finished.')
+    status.publish_status('Adding interpunctuation finished.')
 
     return vtt_punc
 
+
+def kaldi_time_to_seconds(value, seperator):
+    time = value * kaldi_feature_factor / 100
+    time_start =    (f'{int(time / 3600):02}:'
+                            f'{int(time / 60 % 60):02}:'
+                            f'{int(time % 60):02}'
+                            f'{seperator}'
+                            f'{int(time * 1000 % 1000):03}')
+    return time_start
 
 # This creates a segmentation for the subtitles and make sure it can still be mapped to the Kaldi tokenisation
 def segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor, comma_end_reward_factor,
                  sentence_end_reward_factor):
     sequences = []
 
-    # array starts at zero
+    status.publish_status('Start text segmentation.')
+
+    # Array starts at zero
     word_counter = -1
-    print('Begin Segmentation')
     
     # Makes a string for segmentation and change the <UNK> and <unk> Token to UNK
     word_string = ' '.join([e[0].replace('<UNK>', 'UNK').replace('<unk>', 'UNK') for e in vtt])
@@ -331,76 +353,95 @@ def segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor
                                                sentence_end_reward_factor=sentence_end_reward_factor,
                                                comma_end_reward_factor=comma_end_reward_factor)
     
+
     temp_segments = []
     temp_segments.append(segments[0])
+
+
     # Corrects punctuation marks and also lost tokens when they are slipped
     # to the beginning of the next line
     for current in segments[1:]:
         currentL = current.split(' ')
-        if any(token in currentL[0] for token in (',', '.', "'s", "n't")):
+        if currentL[0].startswith((',', '.', '?', '!', "'", "n't")):
             temp_segments[-1] += currentL[0]
             currentL = currentL[1:]
         temp_segments.append(' '.join(currentL))
     segments = temp_segments
+
     # Cuts the segments in words, removes empty objects and
     # and creates the sequences object
     for segment in segments:
         clean_segment = list(filter(None, segment.split(' ')))
         string_segment = ' '.join(clean_segment)
         segment_length = len(clean_segment)
-        # fixes problems with the first token. The first token is everytime 0.
+        # Fixes problems with the first token. The first token is everytime 0
         if vtt[word_counter + 1][1] == 0:
             begin_segment = vtt[word_counter + 2][1]
         else:
             begin_segment = vtt[word_counter + 1][1]
-        end_segment = vtt[word_counter + segment_length][1] + vtt[word_counter + segment_length][2]
+        # this check is a workaround to not get index out a range error which may happen (why? didn't want to get deep into the segmentation code)
+        if (word_counter + segment_length)<len(vtt):
+            end_segment = vtt[word_counter + segment_length][1] + vtt[word_counter + segment_length][2]
+        else: 
+            # use last segment as end_segment
+            end_segment = vtt[-1][1] + vtt[-1][2] 
         sequences.append([string_segment, begin_segment, end_segment])
         word_counter = word_counter + segment_length
+    
+    status.publish_status('Text segmentation finished.')
+    
     return sequences
 
 # Creates the subtitle in the desired subtitleFormat and writes to filenameS (filename stripped) + subtitle suffix
 def create_subtitle(sequences, subtitle_format, filenameS):
+    status.publish_status('Start creating subtitle.')
 
-    print('Creating subtitle')
-    
-    if subtitle_format == 'vtt':
-        file = open(filenameS + '.vtt', 'w')
-        file.write('WEBVTT\n\n')
-        separator = '.'
-    elif subtitle_format == 'srt':
-        file = open(filenameS + '.srt', 'w')
-        separator = ','
+    try:
+        if subtitle_format == 'vtt':
+            file = open(filenameS + '.vtt', 'w')
+            file.write('WEBVTT\n\n')
+            separator = '.'
+        elif subtitle_format == 'srt':
+            file = open(filenameS + '.srt', 'w')
+            separator = ','
 
-    sequence_counter = 1
-    for a in sequences:
+        sequence_counter = 1
+        for a in sequences:
+            time_start = kaldi_time_to_seconds(a[1], separator)
+            time_end = kaldi_time_to_seconds(a[2], separator)
 
-        start_seconds = a[1] / 33.333  # Start of sequence in seconds
-        end_seconds = a[2] / 33.333  # End of sequence in seconds
-        file.write(str(sequence_counter) + '\n')  # number of actual sequence
+            file.write(str(sequence_counter) + '\n')  # number of actual sequence
 
-        time_start =    (f'{int(start_seconds / 3600):02}:'
-                         f'{int(start_seconds / 60 % 60):02}:'
-                         f'{int(start_seconds % 60):02}'
-                         f'{separator}'
-                         f'{int(start_seconds * 1000 % 1000):03}')
+            timestring = time_start + ' --> ' + time_end + '\n'
+            file.write(timestring)
+            file.write(a[0] + '\n\n')
+            sequence_counter += 1
+        file.close()
 
-        time_end =    (f'{int(end_seconds / 3600):02}:'
-                         f'{int(end_seconds / 60 % 60):02}:'
-                         f'{int(end_seconds % 60):02}'
-                         f'{separator}'
-                         f'{int(end_seconds * 1000 % 1000):03}')
+    except Exception as e:
+        status.publish_status('Subtitle creation failed.')
+        status.publish_status(f'error message is: {e}')
+        send_error()
+        sys.exit(-1)
 
-        timestring = time_start + ' --> ' + time_end + '\n'
-        file.write(timestring)
-        file.write(a[0] + '\n\n')
-        sequence_counter += 1
-    file.close()
+    status.publish_status('Finished subtitle creation.')
+
+def send_error():
+    if (callback_url):
+        d = {'message': 'false'}
+        r = requests.put(callback_url, data = d)
+
+def send_success():
+    if (callback_url):
+        d = {'message': 'true'}
+        r = requests.put(callback_url, data = d)
+
 
 if __name__ == '__main__':
     # Argument parser
     parser = argparse.ArgumentParser()
 
-    # flag (- and --) arguments
+    # Flag (- and --) arguments
     parser.add_argument('-s', '--subtitle', help='The output subtitleformat (vtt or srt). Default=vtt',
                         required=False, default='vtt', choices=['vtt', 'srt'])
 
@@ -411,6 +452,12 @@ if __name__ == '__main__':
 
     parser.add_argument('-m', '--model-yaml', help='Kaldi model used for decoding (yaml config).',
                                      type=str, default='models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml')
+
+    parser.add_argument('-i', '--id', help='Manually sets the file id', type=str,
+                        required=False)
+
+    parser.add_argument('-c', '--callback-url', help='Sets a callback URL to notify when process is finished or something went off', type=str,
+                        required=False)
 
     parser.add_argument('--rnn-rescore', help='Do RNNLM rescoring of the decoder output (experimental,'
                                               ' needs more testing).',
@@ -450,7 +497,9 @@ if __name__ == '__main__':
     parser.add_argument('--with-redis-updates', help='Update a redis instance about the current progress.',
                         action='store_true', default=False)
 
-    # positional argument, without (- and --)
+    parser.add_argument('--debug', help='Output debug timing information', default=False)
+
+    # Positional argument, without (- and --)
     parser.add_argument('filename', help='The path of the mediafile', type=str)
 
     args = parser.parse_args()
@@ -459,8 +508,21 @@ if __name__ == '__main__':
     subtitle_format = args.subtitle
     pdf_path = args.pdf
     model_kaldi = args.model_yaml
+    debug_word_timing = args.debug
+    file_id=args.id
+    callback_url=args.callback_url
 
-    # language
+    if (file_id):
+        filenameS_hash = file_id    
+    else:
+        filenameS_hash = hex(abs(hash(filenameS)))[2:] 
+
+    ensure_dir('tmp/')
+
+    # Init status class
+    status = output_status(redis=args.with_redis_updates, filename=filename, fn_short_hash=filenameS_hash)
+
+    # Language selection
     language = args.language
     with open('languages.yaml', 'r') as stream:
         language_yaml = yaml.safe_load(stream)
@@ -468,36 +530,27 @@ if __name__ == '__main__':
             model_kaldi = language_yaml[language]['kaldi']
             model_punctuation = language_yaml[language]['punctuation']
             model_spacy = language_yaml[language]['spacy']
+            uppercase = language_yaml[language]['uppercase']
 
         else:
             print(f'language {language} is not set in languages.yaml . exiting.')
             sys.exit()
 
-    filenameS_hash = hex(abs(hash(filenameS)))[2:]
-    ensure_dir('tmp/')
-    
     if (pdf_path):
         slides = slide_stripper.convert_pdf(pdf_path)
 
-    vtt, words = asr(filenameS_hash, filename=filename, filenameS=filenameS, asr_beamsize=args.asr_beam_size,
-                     asr_max_active=args.asr_max_active, acoustic_scale=args.acoustic_scale, 
-                     with_redis=args.with_redis_updates, do_rnn_rescore=args.rnn_rescore,
-                     config_file=model_kaldi)
+    vtt, words = asr(filenameS_hash, filename=filename, asr_beamsize=args.asr_beam_size,
+                     asr_max_active=args.asr_max_active, acoustic_scale=args.acoustic_scale,
+                     do_rnn_rescore=args.rnn_rescore, config_file=model_kaldi)
     
-    vtt = interpunctuation(vtt, words, filename, filenameS_hash, model_punctuation, with_redis=args.with_redis_updates)
-    
-    if args.with_redis_updates:
-        publish_status(filename, filenameS_hash, 'Starting segmentation.')
+    vtt = interpunctuation(vtt, words, filenameS_hash, model_punctuation, uppercase)
 
     sequences = segmentation(vtt, model_spacy, beam_size=args.segment_beam_size, ideal_token_len=args.ideal_token_len,
                              len_reward_factor=args.len_reward_factor,
                              sentence_end_reward_factor=args.sentence_end_reward_factor,
                              comma_end_reward_factor=args.comma_end_reward_factor)
 
-    if args.with_redis_updates:
-        publish_status(filename, filenameS_hash, 'Segmentation finished.')
-
     create_subtitle(sequences, subtitle_format, filenameS)
 
-    if args.with_redis_updates:
-        publish_status(filename, filenameS_hash, 'Job finished successfully.')
+    status.publish_status('Job finished successfully.')
+    send_success()

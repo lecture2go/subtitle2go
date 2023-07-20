@@ -1,10 +1,10 @@
-# Subtitle2go - Open Source Automatic Lecture Subtitling
+# Subtitle2go - Open Source Automatic Subtitling
 
-Subtitle2go is a fully automatic solution for German video subtitling, with a focus on lecture videos. The project uses open source models and scripts for German ASR, automatic punctuation reconstruction and subtitle segmentation. But it should be straight-forward to support other languages as well and PRs are welcome!
+Subtitle2go is a fully automatic solution for German video subtitling, currently with a focus on lecture videos. The project uses open source models and scripts for German ASR, automatic punctuation reconstruction and subtitle segmentation. But it should be straight-forward to support other languages as well and PRs are welcome!
 
 Our German Kaldi models are based on the [kaldi-tuda-de](https://github.com/uhh-lt/kaldi-tuda-de) TDNN-HMM recipe. This is a Large Vocabulary Continuous Speech Recognition (LVCSR) model trained on about 1700h of German speech data.
 
-[Punctuator2](https://github.com/ottokart/punctuator2) is used for punctuation reconstruction (,.?!)
+[rpunct](https://github.com/Felflare/rpunct) is used for punctuation reconstruction (,.?!)
 
 Subtitle2go uses a custom solution for segmentation, with a beam search segmentation algorithm that searches for the best "segmentation path" with user specified criteria such as average length and variance. Punctuation and distances in parsing trees are used to estimate splitting costs.
 
@@ -12,9 +12,15 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 
 ## News
 
+### 02.09.2022
+
++ Lots of improvements to the German ASR model, punctuation reconstruction (we now use rpunct instead of punctuator2) and a preliminary English ASR model were added. See our new [paper](https://aclanthology.org/2022.konvens-1.11/) for more details.
+
++ Robert Geislinger is presenting the improvements at [Konvens2022](https://konvens2022.uni-potsdam.de/?page_id=65)!
+
 ### 01.11.2021
 
-https://lecture2go.uni-hamburg.de/open-source is using subtitle2go in its production system!
++ https://lecture2go.uni-hamburg.de/open-source is using subtitle2go in its production system!
 
 ### 03.03.2021
 + We presented Subtitle2Go at [ESSV2021](http://www.essv.de/essv2021/program/). You can check out our paper [here](http://www.essv.de/essv2021/pdfs/33_milde_v2.pdf) and [here (mirror)](https://www.inf.uni-hamburg.de/en/inst/ab/lt/publications/2021-mildeetal-subtitle.pdf).
@@ -56,10 +62,6 @@ pip3 install -r requirements.txt
 python3 -m spacy download de_core_news_lg
 python3 -m spacy download en_core_web_lg
 
-# Now install PyKaldi
-wget https://ltdata1.informatik.uni-hamburg.de/pykaldi/pykaldi-0.2.2-cp39-cp39-linux_x86_64.whl
-pip3 install pykaldi-0.2.2-cp39-cp39-linux_x86_64.whl
-
 # Install Kaldi and Intel MKL (see note below if you have a different CPU than Intel)
 
 ./install_mkl.sh
@@ -68,15 +70,9 @@ pip3 install pykaldi-0.2.2-cp39-cp39-linux_x86_64.whl
 # OR if you have a non-Intel CPU:
 ./install_kaldi.sh ~/projects/subtitle2go/subtitle2go_env/bin/python3
 
-# Install punctuator2 for automatic punctuation
-git clone https://github.com/ottokart/punctuator2.git
-
-# Patch punctuator2:
-
-Open punctuator2/models.py in a file editor, go to line 54 and replace "from . import models" with "import models"
-
-# Download pretrained models:
+# Download and extract models
 ./download_models.sh
+
 ```
 
 ## Optional: redis status updates
@@ -199,8 +195,19 @@ If you use Subtitle2Go in your academic work, please cite [this paper](http://ww
       pages={128--134},
       address={Virtual Berlin, Germany}
     }
+    
+optionally also [this paper](https://aclanthology.org/2022.konvens-1.11/) for Subtitle2Go and the newest German ASR model:
 
-and for the German ASR model:
+     @InProceedings{geislinger-etal-2022-improved,
+        title={Improved Open Source Automatic Subtitling for Lecture Videos},
+        author={Robert Geislinger and Benjamin Milde and Chris Biemann},
+        booktitle={Proceedings of the 18th Conference on Natural Language Processing (KONVENS 2022)},
+        year={2022},
+        address={Potsdam, Germany},
+        pages={98--103}
+     }
+
+and for the previous German ASR model:
 
     @InProceedings{milde-koehn-18-german-asr,
       author={Benjamin Milde and Arne K{\"o}hn},
