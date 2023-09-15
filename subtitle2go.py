@@ -15,15 +15,11 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-# Audio Segmentation
 from kaldi_decoder import asr, kaldi_time_to_seconds
-# Interpunctuation
-
 import yaml
 import argparse
 import segment_text
 import slide_stripper
-import time
 import sys
 
 from punctuation import interpunctuation
@@ -43,15 +39,14 @@ def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_fa
     word_string = ' '.join([e[0].replace('<UNK>', 'UNK').replace('<unk>', 'UNK') for e in vtt])
     
     # Call the segmentation beamsearch
-    segments = segment_text.segment_beamsearch(word_string, model_spacy, beam_size=beam_size, ideal_token_len=ideal_token_len,
+    segments = segment_text.segment_beamsearch(word_string, model_spacy, beam_size=beam_size,
+                                               ideal_token_len=ideal_token_len,
                                                len_reward_factor=len_reward_factor,
                                                sentence_end_reward_factor=sentence_end_reward_factor,
                                                comma_end_reward_factor=comma_end_reward_factor)
     
-
     temp_segments = []
     temp_segments.append(segments[0])
-
 
     # Corrects punctuation marks and also lost tokens when they are slipped
     # to the beginning of the next line
@@ -74,7 +69,8 @@ def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_fa
             begin_segment = vtt[word_counter + 2][1]
         else:
             begin_segment = vtt[word_counter + 1][1]
-        # this check is a workaround to not get index out a range error which may happen (why? didn't want to get deep into the segmentation code)
+        # this check is a workaround to not get index out a range error which may happen
+        # (why? didn't want to get deep into the segmentation code)
         if (word_counter + segment_length)<len(vtt):
             end_segment = vtt[word_counter + segment_length][1] + vtt[word_counter + segment_length][2]
         else: 
@@ -126,7 +122,8 @@ def pykaldi_subtitle(status):
                      asr_max_active=args.asr_max_active, acoustic_scale=args.acoustic_scale,
                      do_rnn_rescore=args.rnn_rescore, config_file=model_kaldi, status=status)
     vtt = interpunctuation(vtt, words, filenameS_hash, model_punctuation, uppercase, status=status)
-    sequences = vtt_segmentation(vtt, model_spacy, beam_size=args.segment_beam_size, ideal_token_len=args.ideal_token_len,
+    sequences = vtt_segmentation(vtt, model_spacy, beam_size=args.segment_beam_size,
+                                 ideal_token_len=args.ideal_token_len,
                                  len_reward_factor=args.len_reward_factor,
                                  sentence_end_reward_factor=args.sentence_end_reward_factor,
                                  comma_end_reward_factor=args.comma_end_reward_factor, status=status)
@@ -152,7 +149,8 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--id', help='Manually sets the file id', type=str,
                         required=False)
 
-    parser.add_argument('-c', '--callback-url', help='Sets a callback URL to notify when process is finished or something went off', type=str,
+    parser.add_argument('-c', '--callback-url', help='Sets a callback URL to notify when process is'
+                                                     ' finished or something went off', type=str,
                         required=False)
 
     parser.add_argument('--rnn-rescore', help='Do RNNLM rescoring of the decoder output (experimental,'
@@ -217,7 +215,8 @@ if __name__ == '__main__':
     ensure_dir('tmp/')
 
     # Init status class
-    status = output_status(redis=args.with_redis_updates, filename=filename, fn_short_hash=filenameS_hash, callback_url=callback_url)
+    status = output_status(redis=args.with_redis_updates, filename=filename,
+                           fn_short_hash=filenameS_hash, callback_url=callback_url)
 
     # Language selection
     language = args.language
