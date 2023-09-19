@@ -166,7 +166,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--asr-beam-size', help='ASR decoder option: controls the beam size in the beam search.'
                                                 ' This is a speed / accuracy tradeoff.',
-                        type=int, default=13)
+                        type=int, default=None)
 
     parser.add_argument('--asr-max-active', help='ASR decoder option: controls the maximum number of states that '
                                                  'can be active at one time.',
@@ -197,7 +197,18 @@ if __name__ == '__main__':
     # Positional argument, without (- and --)
     parser.add_argument('filename', help='The path of the mediafile', type=str)
 
+    beamsize_default = {
+        'kaldi': 13,
+        'whisper': 5,
+        'speechcatcher': 10
+    }
+
     args = parser.parse_args()
+
+    if args.asr_beam_size is None:
+        args.asr_beam_size = beamsize_default.get(args.engine, 13)
+        print("Using ASR beamsize:", args.asr_beam_size)
+
     filename = args.filename
     filenameS = filename.rpartition('.')[0] # Filename without file extension
     subtitle_format = args.subtitle
