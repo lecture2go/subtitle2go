@@ -241,7 +241,7 @@ if __name__ == '__main__':
 
     if args.engine == 'kaldi':
         ensure_dir('tmp/')
-        with open('languages.yaml', 'r') as stream:
+        with open('kaldi_languages.yaml', 'r') as stream:
             language_yaml = yaml.safe_load(stream)
             if language_yaml.get(language, None):
                 model_kaldi = language_yaml[language]['kaldi']
@@ -249,7 +249,7 @@ if __name__ == '__main__':
                 model_spacy = language_yaml[language]['spacy']
                 uppercase = language_yaml[language]['uppercase']
             else:
-                print(f'Language {language} is not set in languages.yaml. Exiting.')
+                print(f'Language {language} is not set in kaldi_languages.yaml. Exiting.')
                 sys.exit()
 
         pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash)
