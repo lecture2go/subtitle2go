@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #    Copyright 2022 HITeC e.V., Benjamin Milde and Robert Geislinger
+#    Copyright 2023 Lecture2Go, Dr. Benjamin Milde
 #
 #    Licensed under the Apache License, Version 2.0 (the 'License');
 #    you may not use this file except in compliance with the License.
