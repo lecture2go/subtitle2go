@@ -22,10 +22,14 @@ from typing import Iterator, TextIO
 import sys
 import whisper
 
-# The write_vtt function was replaced in whisper, its a bit annoying
+# The write_vtt, write_srt and write_txt functions were replaced in whisper, the new code is a bit annoying
+# and complicates things for no reason
 # this is the old version, copied from a previous version of whisper
 # see https://github.com/openai/whisper/commit/da600abd2b296a5450770b872c3765d0a5a5c769
 def write_vtt(transcript: Iterator[dict], file: TextIO):
+    """
+    Write a whisper transcript to a file in VTT format.
+    """
     print("WEBVTT\n", file=file)
     for segment in transcript:
         print(
@@ -35,7 +39,29 @@ def write_vtt(transcript: Iterator[dict], file: TextIO):
             flush=True,
         )
 
-def whisper_asr(filename, status, language, model='small', best_of=5, beam_size=5,
+def write_srt(transcript: Iterator[dict], file: TextIO):
+    """
+    Write a whisper transcript to a file in SRT format.
+    """
+    for i, segment in enumerate(transcript, start=1):
+        # write srt lines
+        print(
+            f"{i}\n"
+            f"{format_timestamp(segment['start'], always_include_hours=True, decimal_marker=',')} --> "
+            f"{format_timestamp(segment['end'], always_include_hours=True, decimal_marker=',')}\n"
+            f"{segment['text'].strip().replace('-->', '->')}\n",
+            file=file,
+            flush=True,
+        )
+
+def write_txt(transcript: Iterator[dict], file: TextIO):
+    """
+    Write a whisper transcript to a file in txt format.
+    """
+    for segment in transcript:
+        print(segment['text'].strip(), file=file, flush=True)
+
+def whisper_asr(filename, status, language=None, output_format='vtt', model='small', best_of=5, beam_size=5,
                 condition_on_previous_text=True, fp16=True):
     if status:
         status.publish_status('Starting Whisper decode.')
@@ -54,8 +80,12 @@ def whisper_asr(filename, status, language, model='small', best_of=5, beam_size=
                               compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=0.6,
                               verbose=True, status=status)
 
-        with open(filename_without_extension + '.vtt', 'w') as outfile:
-            write_vtt(result["segments"], file=outfile)
+        if output_format == 'vtt':
+            with open(filename_without_extension + '.vtt', 'w') as outfile:
+                write_vtt(result["segments"], file=outfile)
+        elif output_format == 'srt':
+            with open(filename_without_extension + '.srt', 'w') as outfile:
+                write_srt(result["segments"], file=outfile)
 
     except Exception as e:
         if status:
