@@ -95,7 +95,7 @@ def whisper_asr(filename, status, language=None, output_format='vtt', model='sma
             sys.exit(-2)
 
     if status:
-        status.publish_status(f'VTT finished. Model reported language: {result["language"]}')
+        status.publish_status(f'{output_format.upper()} finished. Model reported language: {result["language"]}')
     print('Done!')
 
     return result
