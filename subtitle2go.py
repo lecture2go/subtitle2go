@@ -24,6 +24,7 @@ import sys
 
 from punctuation import interpunctuation
 from utils import output_status, ensure_dir
+from whisper_decoder import whisper_asr
 
 # This creates a segmentation for the subtitles and make sure it can still be mapped to the Kaldi tokenisation
 def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor, comma_end_reward_factor,
@@ -44,7 +45,7 @@ def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_fa
                                                len_reward_factor=len_reward_factor,
                                                sentence_end_reward_factor=sentence_end_reward_factor,
                                                comma_end_reward_factor=comma_end_reward_factor)
-    
+
     temp_segments = []
     temp_segments.append(segments[0])
 
@@ -117,7 +118,7 @@ def create_kaldi_subtitle(sequences, subtitle_format, filenameS, status):
 
     status.publish_status('Finished subtitle creation.')
 
-def pykaldi_subtitle(status):
+def pykaldi_subtitle(status, args, filename, filenameS, filenameS_hash):
     vtt, words = asr(filenameS_hash, filename=filename, asr_beamsize=args.asr_beam_size,
                      asr_max_active=args.asr_max_active, acoustic_scale=args.acoustic_scale,
                      do_rnn_rescore=args.rnn_rescore, config_file=model_kaldi, status=status)
@@ -134,14 +135,14 @@ if __name__ == '__main__':
     # Argument parser
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('-e', '--engine', help='The ASR engine to use. One of: kaldi, whisper or speechcatcher.',
+                        required=False, default='kaldi', choices=['kaldi', 'whisper', 'speechcatcher'])
+
     # Flag (- and --) arguments
     parser.add_argument('-s', '--subtitle', help='The output subtitleformat (vtt or srt). Default=vtt',
                         required=False, default='vtt', choices=['vtt', 'srt'])
 
     parser.add_argument('-l', '--language', help='Sets the language of the models', required=False, default='de')
-    
-    parser.add_argument('-p', '--pdf', help='Path to the slides (PDF).',
-                        required=False)
 
     parser.add_argument('-m', '--model-yaml', help='Kaldi model used for decoding (yaml config).',
                                      type=str, default='models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml')
@@ -196,13 +197,12 @@ if __name__ == '__main__':
     # Positional argument, without (- and --)
     parser.add_argument('filename', help='The path of the mediafile', type=str)
 
-
-
     args = parser.parse_args()
-    filenameS = args.filename.rpartition('.')[0] # Filename without file extension
     filename = args.filename
+    filenameS = filename.rpartition('.')[0] # Filename without file extension
     subtitle_format = args.subtitle
-    pdf_path = args.pdf
+    beamsize = args.asr_beam_size
+
     debug_word_timing = args.debug
     file_id=args.id
     callback_url=args.callback_url
@@ -210,9 +210,7 @@ if __name__ == '__main__':
     if (file_id):
         filenameS_hash = file_id    
     else:
-        filenameS_hash = hex(abs(hash(filenameS)))[2:] 
-
-    ensure_dir('tmp/')
+        filenameS_hash = hex(abs(hash(filenameS)))[2:]
 
     # Init status class
     status = output_status(redis=args.with_redis_updates, filename=filename,
@@ -220,22 +218,26 @@ if __name__ == '__main__':
 
     # Language selection
     language = args.language
-    with open('languages.yaml', 'r') as stream:
-        language_yaml = yaml.safe_load(stream)
-        if language_yaml.get(language, None):
-            model_kaldi = language_yaml[language]['kaldi']
-            model_punctuation = language_yaml[language]['punctuation']
-            model_spacy = language_yaml[language]['spacy']
-            uppercase = language_yaml[language]['uppercase']
 
-        else:
-            print(f'language {language} is not set in languages.yaml . exiting.')
-            sys.exit()
+    if args.engine == 'kaldi':
+        ensure_dir('tmp/')
+        with open('languages.yaml', 'r') as stream:
+            language_yaml = yaml.safe_load(stream)
+            if language_yaml.get(language, None):
+                model_kaldi = language_yaml[language]['kaldi']
+                model_punctuation = language_yaml[language]['punctuation']
+                model_spacy = language_yaml[language]['spacy']
+                uppercase = language_yaml[language]['uppercase']
+            else:
+                print(f'Language {language} is not set in languages.yaml. Exiting.')
+                sys.exit()
 
-    if (pdf_path):
-        slides = slide_stripper.convert_pdf(pdf_path)
-
-    pykaldi_subtitle(status)
+        pykaldi_subtitle(status, args, filename, filenameS, filenameS_hash)
+    elif args.engine == 'whisper':
+        whisper_asr(filename, status, language, model='small', best_of=5, beam_size=beamsize,
+                    condition_on_previous_text=True, fp16=True)
+    else:
+        print(args.engine, 'is not a valid engine.')
 
     status.publish_status('Job finished successfully.')
     status.send_success()
