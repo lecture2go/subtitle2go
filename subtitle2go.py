@@ -118,17 +118,17 @@ def create_kaldi_subtitle(sequences, subtitle_format, filenameS, status):
 
     status.publish_status('Finished subtitle creation.')
 
-def pykaldi_subtitle(status, args, filename, filenameS, filenameS_hash):
-    vtt, words = asr(filenameS_hash, filename=filename, asr_beamsize=args.asr_beam_size,
+def pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash):
+    vtt, words = asr(filename_without_extension_hash, filename=filename, asr_beamsize=args.asr_beam_size,
                      asr_max_active=args.asr_max_active, acoustic_scale=args.acoustic_scale,
                      do_rnn_rescore=args.rnn_rescore, config_file=model_kaldi, status=status)
-    vtt = interpunctuation(vtt, words, filenameS_hash, model_punctuation, uppercase, status=status)
+    vtt = interpunctuation(vtt, words, filename_without_extension_hash, model_punctuation, uppercase, status=status)
     sequences = vtt_segmentation(vtt, model_spacy, beam_size=args.segment_beam_size,
                                  ideal_token_len=args.ideal_token_len,
                                  len_reward_factor=args.len_reward_factor,
                                  sentence_end_reward_factor=args.sentence_end_reward_factor,
                                  comma_end_reward_factor=args.comma_end_reward_factor, status=status)
-    create_kaldi_subtitle(sequences, subtitle_format, filenameS, status=status)
+    create_kaldi_subtitle(sequences, subtitle_format, filename_without_extension, status=status)
 
 
 if __name__ == '__main__':
@@ -142,7 +142,8 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--subtitle', help='The output subtitleformat (vtt or srt). Default=vtt',
                         required=False, default='vtt', choices=['vtt', 'srt'])
 
-    parser.add_argument('-l', '--language', help='Sets the language of the models', required=False, default='de')
+    parser.add_argument('-l', '--language', help='Sets the language of the models (de/en/...)',
+                        required=False, default='de')
 
     parser.add_argument('-m', '--model-yaml', help='Kaldi model used for decoding (yaml config).',
                                      type=str, default='models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml')
@@ -210,22 +211,24 @@ if __name__ == '__main__':
         print("Using ASR beamsize:", args.asr_beam_size)
 
     filename = args.filename
-    filenameS = filename.rpartition('.')[0] # Filename without file extension
+    filename_without_extension = filename.rpartition('.')[0]
     subtitle_format = args.subtitle
     beamsize = args.asr_beam_size
 
     debug_word_timing = args.debug
-    file_id=args.id
-    callback_url=args.callback_url
+    file_id = args.id
+    callback_url = args.callback_url
 
+    # the default is to use the hash of filename_without_extension as file id
+    # but it can also me set manually, if --id is used on the command line
     if (file_id):
-        filenameS_hash = file_id    
+        filename_without_extension_hash = file_id
     else:
-        filenameS_hash = hex(abs(hash(filenameS)))[2:]
+        filename_without_extension_hash = hex(abs(hash(filename_without_extension)))[2:]
 
     # Init status class
     status = output_status(redis=args.with_redis_updates, filename=filename,
-                           fn_short_hash=filenameS_hash, callback_url=callback_url)
+                           fn_short_hash=filename_without_extension_hash, callback_url=callback_url)
 
     # Language selection
     language = args.language
@@ -243,7 +246,7 @@ if __name__ == '__main__':
                 print(f'Language {language} is not set in languages.yaml. Exiting.')
                 sys.exit()
 
-        pykaldi_subtitle(status, args, filename, filenameS, filenameS_hash)
+        pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash)
     elif args.engine == 'whisper':
         whisper_asr(filename, status, language, model='small', best_of=5, beam_size=beamsize,
                     condition_on_previous_text=True, fp16=True)

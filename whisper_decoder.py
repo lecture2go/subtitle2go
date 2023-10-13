@@ -18,22 +18,26 @@ def write_vtt(transcript: Iterator[dict], file: TextIO):
             flush=True,
         )
 
-def whisper_asr(filename, status, language, model='small', best_of=5, beam_size=5, condition_on_previous_text=True, fp16=True):
+def whisper_asr(filename, status, language, model='small', best_of=5, beam_size=5,
+                condition_on_previous_text=True, fp16=True):
     if status:
         status.publish_status('Starting Whisper decode.')
 
     result = None
-    filenameS = filename.rpartition('.')[0] # Filename without file extension
+
+    # Filename without file extension
+    filename_without_extension = filename.rpartition('.')[0]
 
     try:
         whisper_model = whisper.load_model(model)
-        result = whisper_model.transcribe(filename, language=language, task='transcribe', temperature=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
+        result = whisper_model.transcribe(filename, language=language, task='transcribe',
+                                          temperature=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
                               best_of=best_of, beam_size=beam_size, suppress_tokens="-1",
                               condition_on_previous_text=condition_on_previous_text, fp16=fp16,
                               compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=0.6,
                               verbose=True)
 
-        with open(filenameS + '.vtt', 'w') as outfile:
+        with open(filename_without_extension + '.vtt', 'w') as outfile:
             write_vtt(result["segments"], file=outfile)
 
     except Exception as e:
