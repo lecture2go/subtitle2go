@@ -19,12 +19,12 @@ from kaldi_decoder import asr, kaldi_time_to_seconds
 import yaml
 import argparse
 import segment_text
-import slide_stripper
 import sys
 
 from punctuation import interpunctuation
 from utils import output_status, ensure_dir
 from whisper_decoder import whisper_asr
+
 
 # This creates a segmentation for the subtitles and make sure it can still be mapped to the Kaldi tokenisation
 def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor, comma_end_reward_factor,
@@ -46,20 +46,19 @@ def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_fa
                                                sentence_end_reward_factor=sentence_end_reward_factor,
                                                comma_end_reward_factor=comma_end_reward_factor)
 
-    temp_segments = []
-    temp_segments.append(segments[0])
+    temp_segments = [segments[0]]
 
     # Corrects punctuation marks and also lost tokens when they are slipped
     # to the beginning of the next line
     for current in segments[1:]:
-        currentL = current.split(' ')
-        if currentL[0].startswith((',', '.', '?', '!', "'", "n't")):
-            temp_segments[-1] += currentL[0]
-            currentL = currentL[1:]
-        temp_segments.append(' '.join(currentL))
+        current_l = current.split(' ')
+        if current_l[0].startswith((',', '.', '?', '!', "'", "n't")):
+            temp_segments[-1] += current_l[0]
+            current_l = current_l[1:]
+        temp_segments.append(' '.join(current_l))
     segments = temp_segments
 
-    # Cuts the segments in words, removes empty objects and
+    # Cuts the segments in words, removes empty objects
     # and creates the sequences object
     for segment in segments:
         clean_segment = list(filter(None, segment.split(' ')))
@@ -72,7 +71,7 @@ def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_fa
             begin_segment = vtt[word_counter + 1][1]
         # this check is a workaround to not get index out a range error which may happen
         # (why? didn't want to get deep into the segmentation code)
-        if (word_counter + segment_length)<len(vtt):
+        if (word_counter + segment_length) < len(vtt):
             end_segment = vtt[word_counter + segment_length][1] + vtt[word_counter + segment_length][2]
         else: 
             # use last segment as end_segment
@@ -84,18 +83,23 @@ def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_fa
     
     return sequences
 
+
 # Creates the subtitle in the desired subtitleFormat and writes to filenameS (filename stripped) + subtitle suffix
-def create_kaldi_subtitle(sequences, subtitle_format, filenameS, status):
+def create_kaldi_subtitle(sequences, subtitle_format, filename_without_extension, status):
     status.publish_status('Start creating subtitle.')
 
     try:
         if subtitle_format == 'vtt':
-            file = open(filenameS + '.vtt', 'w')
+            file = open(filename_without_extension + '.vtt', 'w')
             file.write('WEBVTT\n\n')
             separator = '.'
         elif subtitle_format == 'srt':
-            file = open(filenameS + '.srt', 'w')
+            file = open(filename_without_extension + '.srt', 'w')
             separator = ','
+        else:
+            status.publish_status(f"Output format: {subtitle_format} invalid!")
+            status.send_error()
+            sys.exit(-5)
 
         sequence_counter = 1
         for a in sequences:
@@ -117,6 +121,7 @@ def create_kaldi_subtitle(sequences, subtitle_format, filenameS, status):
         sys.exit(-1)
 
     status.publish_status('Finished subtitle creation.')
+
 
 def pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash):
     vtt, words = asr(filename_without_extension_hash, filename=filename, asr_beamsize=args.asr_beam_size,
@@ -146,7 +151,7 @@ if __name__ == '__main__':
                         required=False, default='de')
 
     parser.add_argument('-m', '--model-yaml', help='Kaldi model used for decoding (yaml config).',
-                                     type=str, default='models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml')
+                        type=str, default='models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml')
 
     parser.add_argument('-i', '--id', help='Manually sets the file id', type=str,
                         required=False)
@@ -163,7 +168,7 @@ if __name__ == '__main__':
                                                  ' log-probabilities, and is a universally used kludge'
                                                  ' in HMM-GMM and HMM-DNN systems to account for the'
                                                  ' correlation between frames.',
-                         type=float, default=1.0)
+                        type=float, default=1.0)
 
     parser.add_argument('--asr-beam-size', help='ASR decoder option: controls the beam size in the beam search.'
                                                 ' This is a speed / accuracy tradeoff.',
@@ -219,9 +224,9 @@ if __name__ == '__main__':
     file_id = args.id
     callback_url = args.callback_url
 
-    # the default is to use the hash of filename_without_extension as file id
-    # but it can also me set manually, if --id is used on the command line
-    if (file_id):
+    # The default is to use the hash of filename_without_extension as file id.
+    # But it can also be set manually, if --id is used on the command line
+    if file_id:
         filename_without_extension_hash = file_id
     else:
         filename_without_extension_hash = hex(abs(hash(filename_without_extension)))[2:]
