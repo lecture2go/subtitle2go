@@ -52,7 +52,7 @@ def whisper_asr(filename, status, language, model='small', best_of=5, beam_size=
                               best_of=best_of, beam_size=beam_size, suppress_tokens="-1",
                               condition_on_previous_text=condition_on_previous_text, fp16=fp16,
                               compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=0.6,
-                              verbose=True)
+                              verbose=True, status=status)
 
         with open(filename_without_extension + '.vtt', 'w') as outfile:
             write_vtt(result["segments"], file=outfile)
