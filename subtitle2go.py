@@ -254,8 +254,10 @@ if __name__ == '__main__':
 
         pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash)
     elif args.engine == 'whisper':
-        whisper_asr(filename, status, language, model='small', best_of=5, beam_size=beamsize,
-                    condition_on_previous_text=True, fp16=True)
+        if language == 'auto':
+            language = None
+        whisper_asr(filename, status, language, output_format=args.subtitle, model='small', best_of=5,
+                    beam_size=beamsize, condition_on_previous_text=True, fp16=True)
     else:
         print(args.engine, 'is not a valid engine.')
 
