@@ -42,6 +42,7 @@ long_poll_timeout_burst = 0.08
 
 current_jobs = {}
 
+
 def persistence_event_stream():
     global current_jobs
     print('Estabilishing persistence event_stream...')
@@ -55,20 +56,23 @@ def persistence_event_stream():
             key = str(msg_json['pid']) + '_' + msg_json['file_id']
             current_jobs[key] = msg_json
 
+
 def event_stream():
     print('New connection to event_stream!')
     pubsub = red.pubsub()
     pubsub.subscribe(redis_server_channel)
- #   yield b'hello'
+    #   yield b'hello'
     for message in pubsub.listen():
         if not message['type'] == 'subscribe':
-            #print('New message:', message)
-            #print(type(message['data']))
+            # print('New message:', message)
+            # print(type(message['data']))
             yield b'data: %s\n\n' % message['data']
+
 
 @app.route('/status')
 def status():
     return jsonify(current_jobs)
+
 
 @app.route('/status/<jobid>')
 def status_with_id(jobid):
@@ -76,6 +80,7 @@ def status_with_id(jobid):
         return jsonify(current_jobs[jobid])
     else:
         return jsonify({'error': 'could not find jobid in current jobs.'})
+
 
 @app.route('/load')
 def check_current_load():
@@ -93,27 +98,36 @@ def check_current_load():
 
     return jsonify(response)
 
+
 @app.route('/start', methods=['POST'])
 def start():
     request_data = request.get_json()
 
     filename = request_data['filename']
     language = request_data['language']
+    engine = 'kaldi'
+
+    if 'engine' in request_data:
+        engine = request_data['engine']
+
     callback_url = request_data['url'] + "/" + request_data['id']
 
     # calculate and return id
-    filenameS = filename.rpartition('.')[0] # Filename without file extension
+    filenameS = filename.rpartition('.')[0]  # Filename without file extension
     filenameS_hash = hex(abs(hash(filenameS)))[2:]
 
     # prepare logging
-    log_file=filename+"_"+request_data['id']+".log"
+    log_file = filename + "_" + request_data['id'] + ".log"
 
     # run subtitle2go in background with the calculated id
-    with open(log_file,"w+") as out:
-        p = subprocess.Popen(["python","subtitle2go.py",filename,"-l",language,"--with-redis-updates","-i",filenameS_hash,"-c",callback_url],stdout=out,stderr=out)
+    with open(log_file, "w+") as out:
+        p = subprocess.Popen(
+            ["python", "subtitle2go.py", "-e", engine, "-l", language, "--with-redis-updates", "-i", filenameS_hash,
+             "-c", callback_url, filename], stdout=out, stderr=out)
 
     id = str(p.pid) + '_' + filenameS_hash
     return id
+
 
 @app.route('/stop', methods=['POST'])
 def stop():
@@ -140,39 +154,43 @@ def clear_finished():
     to_delete = []
     for key in current_jobs:
         if 'finished' in current_jobs[key]['status'] \
-          or 'failed' in current_jobs[key]['status'] :
+                or 'failed' in current_jobs[key]['status']:
             to_delete.append(key)
     for key in to_delete:
         del current_jobs[key]
     return 'ok'
 
-#Event stream end point for the browser, connection is left open. Must be used with threaded Flask.
+
+# Event stream end point for the browser, connection is left open. Must be used with threaded Flask.
 @app.route('/stream')
 def stream():
     return flask.Response(event_stream(), mimetype='text/event-stream')
 
-#Traditional long polling. This is the fall back, if a browser does not support server side events. 
+
+# Traditional long polling. This is the fall back, if a browser does not support server side events.
 @app.route('/stream_poll')
 def poll():
     pubsub = red.pubsub()
     pubsub.subscribe(redis_server_channel)
     message = pubsub.get_message(timeout=long_poll_timeout)
-    while(message != None):
+    while (message != None):
         yield message
         message = pubsub.get_message(timeout=long_poll_timeout_burst)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Status update server for subtitle2go jobs')
     parser.add_argument('-l', '--listen-host', default='127.0.0.1', dest='host', help='Host address to listen on.')
     parser.add_argument('-p', '--port', default=7500, dest='port', help='Port to listen on.', type=int)
-    parser.add_argument('--debug', dest='debug', help='Start with debugging enabled', action='store_true', default=False)
+    parser.add_argument('--debug', dest='debug', help='Start with debugging enabled', action='store_true',
+                        default=False)
 
     args = parser.parse_args()
 
-    #print(' * Starting app with base path:',base_path)
+    # print(' * Starting app with base path:',base_path)
     if args.debug:
         app.debug = True
- 
+
     persistence_event_stream_thread = threading.Thread(target=persistence_event_stream)
     persistence_event_stream_thread.start()
     print('Running as testing server.')
