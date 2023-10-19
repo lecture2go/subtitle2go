@@ -140,7 +140,11 @@ def Kaldi(config_file, scp_filename, spk2utt_filename, segments_filename, do_rnn
     with SequentialMatrixReader(feats_rspec) as f, \
             SequentialMatrixReader(ivectors_rspec) as i:
             for (fkey, feats), (ikey, ivectors) in zip(f, i):
-                status.publish_status(f'Decoding segment {segmentcounter} of {len(segments_timing)}.')
+                # Calculate progress percentage
+                progress_percentage = (segmentcounter / len(segments_timing)) * 100
+                progress_message = f'Decoding progress: {progress_percentage:.2f}%'
+                status.publish_status(progress_message)
+
                 if cmvn_transformer:
                     cmvn_transformer.apply(feats)
                 did_decode = True
@@ -246,6 +250,8 @@ def asr(filenameS_hash, filename, asr_beamsize=13, asr_max_active=8000, acoustic
         status.publish_status('Start ASR.')
     vtt, did_decode, words = Kaldi(config_file, scp_filename, spk2utt_filename, segments_filename,
                                    do_rnn_rescore, segments_timing, lm_scale, acoustic_scale, status)
+
+    # communicate back job status
     if did_decode:
         if status:
             status.publish_status('ASR finished.')
