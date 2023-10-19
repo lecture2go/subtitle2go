@@ -148,7 +148,10 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--subtitle', help='The output subtitleformat (vtt or srt). Default=vtt',
                         required=False, default='vtt', choices=['vtt', 'srt'])
 
-    parser.add_argument('-l', '--language', help='Sets the language of the models (de/en/...)',
+    parser.add_argument('-l', '--language', help='Sets the language of the models (de/en/...).'
+                                                 'With the engine option set to "whisper" you'
+                                                 ' can also use "auto" for automatic language'
+                                                 ' detection.',
                         required=False, default='de')
 
     parser.add_argument('-m', '--model-yaml', help='Kaldi model used for decoding (yaml config).',
@@ -161,8 +164,8 @@ if __name__ == '__main__':
                                                      ' finished or something went off', type=str,
                         required=False)
 
-    parser.add_argument('--rnn-rescore', help='Do RNNLM rescoring of the decoder output (experimental,'
-                                              ' needs more testing).',
+    parser.add_argument('--rnn-rescore', help='Do RNNLM rescoring of the decoder output (only for PyKaldi'
+                                              'models).',
                         action='store_true', default=False)
 
     parser.add_argument('--acoustic-scale', help='ASR decoder option: This is a scale on the acoustic'
@@ -254,6 +257,8 @@ if __name__ == '__main__':
 
         pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash)
     elif args.engine == 'whisper':
+        # Setting language to None means that Whisper will use the first
+        # 30 seconds to automatically determine the language
         if language == 'auto':
             language = None
         whisper_asr(filename, status, language, output_format=args.subtitle, model='small', best_of=5,
