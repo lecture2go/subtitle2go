@@ -213,11 +213,20 @@ if __name__ == '__main__':
         'speechcatcher': 10
     }
 
+    engine_model_default = {
+        'kaldi':  'models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml',
+        'speechcatcher': '', 
+        'whisper': 'large-v2' 
+   }
+
     args = parser.parse_args()
 
     if args.asr_beam_size is None:
         args.asr_beam_size = beamsize_default.get(args.engine, 13)
         print("Using ASR beamsize:", args.asr_beam_size)
+
+    if args.model_yaml is None:
+        args.model_yaml = engine_model_default[args.engine]
 
     filename = args.filename
     filename_without_extension = filename.rpartition('.')[0]
@@ -261,7 +270,7 @@ if __name__ == '__main__':
         # 30 seconds to automatically determine the language
         if language == 'auto':
             language = None
-        whisper_asr(filename, status, language, output_format=args.subtitle, model='small', best_of=5,
+        whisper_asr(filename, status, language, output_format=args.subtitle, model=args.model_yaml, best_of=5,
                     beam_size=beamsize, condition_on_previous_text=True, fp16=True)
     else:
         print(args.engine, 'is not a valid engine.')
