@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #    Copyright 2022 HITeC e.V.
+#    Copyright 2023 Lecture2Go
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -14,6 +15,8 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+
+#
 
 import argparse
 import threading
@@ -30,7 +33,7 @@ import os
 import signal
 import psutil
 
-__author__ = 'Benjamin Milde'
+__author__ = 'Dr. Benjamin Milde'
 
 redis_server_channel = 'subtitle2go'
 
@@ -41,7 +44,6 @@ long_poll_timeout = 0.5
 long_poll_timeout_burst = 0.08
 
 current_jobs = {}
-
 
 def persistence_event_stream():
     global current_jobs
@@ -98,6 +100,24 @@ def check_current_load():
 
     return jsonify(response)
 
+@app.route('/free_gpu', methods=['GET'])
+def find_free_gpu_by_memory():
+    try:
+        # run nvidia-smi to get GPU memory usage
+        result = subprocess.check_output(['nvidia-smi', '--query-gpu=memory.used', '--format=csv,noheader,nounits'])
+        memory_usages = [int(usage) for usage in result.strip().split('\n')]
+        result = subprocess.check_output(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'])
+        memory_totals = [int(total) for total in result.strip().split('\n')]
+        free_memory = [total - used for total, used in zip(memory_totals, memory_usages)]
+        # find the first GPU with >90% free memory
+        for i, memory in enumerate(free_memory):
+            if memory / memory_totals[i] > 0.9:
+                return jsonify({'gpu_index': i})
+        # no suitable GPU found, return -1
+        return jsonify({'gpu_index': -1})
+    except Exception as e:
+        print("Error finding free GPU by memory:", str(e))
+        return jsonify({'error': str(e)})
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -118,6 +138,16 @@ def start():
 
     # prepare logging
     log_file = filename + "_" + request_data['id'] + ".log"
+
+    # if 'gpu_index' is provided in the request data, we need to set CUDA_VISIBLE_DEVICES.
+    if 'gpu_index' in request_data:
+        gpu_index = request_data['gpu_index']
+        if gpu_index == -1:
+            # force CPU usage by setting empty CUDA_VISIBLE_DEVICES
+            # for gpu_index == -1, meaning no suitable free GPU available.
+            os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        else:
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_index)
 
     # run subtitle2go in background with the calculated id
     with open(log_file, "w+") as out:
