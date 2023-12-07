@@ -25,6 +25,7 @@ import sys
 from punctuation import interpunctuation
 from utils import output_status, ensure_dir
 from whisper_decoder import whisper_asr
+from speechcatcher_decoder import speechcatcher_asr
 
 
 # This creates a segmentation for the subtitles and make sure it can still be mapped to the Kaldi tokenisation
@@ -154,8 +155,9 @@ if __name__ == '__main__':
                                                  ' detection.',
                         required=False, default='de')
 
-    parser.add_argument('-m', '--model-yaml', help='Kaldi model used for decoding (yaml config).',
-                        type=str, default='models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml')
+    parser.add_argument('-m', '--model-yaml', help='Model used for decoding (yaml config for'
+                                                   ' kaldi or model name for other engines).',
+                        type=str, default=None)
 
     parser.add_argument('-i', '--id', help='Manually sets the file id', type=str,
                         required=False)
@@ -214,8 +216,8 @@ if __name__ == '__main__':
     }
 
     engine_model_default = {
-        'kaldi':  'models/kaldi_tuda_de_nnet3_chain2_de_683k.yaml',
-        'speechcatcher': '', 
+        'kaldi':  'models/kaldi_tuda_de_nnet3_chain2_de_900k.yaml',
+        'speechcatcher': 'de_streaming_transformer_xl',
         'whisper': 'large-v2' 
    }
 
@@ -272,8 +274,12 @@ if __name__ == '__main__':
             language = None
         whisper_asr(filename, status, language, output_format=args.subtitle, model=args.model_yaml, best_of=5,
                     beam_size=beamsize, condition_on_previous_text=True, fp16=True)
+    elif args.engine == 'speechcatcher':
+        speechcatcher_asr(filename, status, language=language, output_format=args.subtitle,
+                          model_short_tag=args.model_yaml)
     else:
         print(args.engine, 'is not a valid engine.')
 
-    status.publish_status('Job finished successfully.')
-    status.send_success()
+    if status:
+        status.publish_status('Job finished successfully.')
+        status.send_success()

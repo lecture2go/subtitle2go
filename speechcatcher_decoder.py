@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+#    Copyright 2023 Lecture2Go, Dr. Benjamin Milde
+#
+#    Licensed under the Apache License, Version 2.0 (the 'License');
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an 'AS IS' BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+
+import hashlib
+import wave
+import os
+import numpy as np
+import multiprocessing
+import segment_text
+from speechcatcher import speechcatcher
+
+def speechcatcher_vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor,
+                                   comma_end_reward_factor, sentence_end_reward_factor, status):
+    segments = segment_text.segment_beamsearch(word_string, model_spacy, beam_size=beam_size,
+                                               ideal_token_len=ideal_token_len,
+                                               len_reward_factor=len_reward_factor,
+                                               sentence_end_reward_factor=sentence_end_reward_factor,
+                                               comma_end_reward_factor=comma_end_reward_factor)
+
+def speechcatcher_asr(media_path, status, language=None, output_format='vtt',
+                      model_short_tag='de_streaming_transformer_xl',
+                      chunk_length=8192, num_processes=-1, tmp_dir='./tmp/'):
+
+    if language is not None and language != '' and language != 'auto' and language != 'ignore':
+        if language not in model_short_tag:
+            error_msg = f"Error, model {model_short_tag} seems to be incompatible with language {language}."
+            print(error_msg)
+            if status:
+                status.publish_status(error_msg)
+            return
+
+    if num_processes == -1:
+        num_processes = multiprocessing.cpu_count() // 2
+
+    if status:
+        status.publish_status(f'Loading model {model_short_tag}...')
+    speech2text = speechcatcher.load_model(speechcatcher.tags[model_short_tag])
+
+    if status:
+        status.publish_status('Converting input file to 16kHz mono audio...')
+
+    speechcatcher.ensure_dir(tmp_dir)
+    wavfile_path = tmp_dir + hashlib.sha1(media_path.encode("utf-8")).hexdigest() + '.wav'
+    speechcatcher.convert_inputfile(media_path, wavfile_path)
+
+    with wave.open(wavfile_path, 'rb') as wavfile_in:
+        ch = wavfile_in.getnchannels()
+        bits = wavfile_in.getsampwidth()*8
+        rate = wavfile_in.getframerate()
+        nframes = wavfile_in.getnframes()
+        buf = wavfile_in.readframes(-1)
+        raw_speech_data = np.frombuffer(buf, dtype='int16')
+
+    assert(ch == 1)
+    assert(bits == 16)
+    assert(rate == 16000)
+
+    if status:
+        status.publish_status('Starting decoding with speechcatcher model'
+                              f' {model_short_tag} with {num_processes} processes.')
+
+    # speech is a numpy array of dtype='np.int16' (16bit audio with 16kHz sampling rate)
+    complete_text, paragraphs = speechcatcher.recognize(speech2text, raw_speech_data, rate, chunk_length=chunk_length,
+                                                        num_processes=num_processes, progress=False,
+                                                        quiet=True, status=status)
+
+    print(complete_text)
+    os.remove(wavfile_path)
