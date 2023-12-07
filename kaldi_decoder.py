@@ -41,9 +41,10 @@ from simple_endpointing import process_wav
 
 from utils import *
 
-def kaldi_time_to_seconds(value, seperator):
-    time = value * kaldi_feature_factor / 100
-    time_start =    (f'{int(time / 3600):02}:'
+def kaldi_time_to_seconds(time, seperator, convert_from_kaldi_time=True):
+    if convert_from_kaldi_time:
+        time = time * kaldi_feature_factor / 100
+    time_start = (f'{int(time / 3600):02}:'
                             f'{int(time / 60 % 60):02}:'
                             f'{int(time % 60):02}'
                             f'{seperator}'

@@ -23,15 +23,52 @@ import multiprocessing
 import segment_text
 from speechcatcher import speechcatcher
 
-def speechcatcher_vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor,
+def speechcatcher_vtt_segmentation(paragraphs, model_spacy, beam_size, ideal_token_len, len_reward_factor,
                                    comma_end_reward_factor, sentence_end_reward_factor, status):
-    segments = segment_text.segment_beamsearch(word_string, model_spacy, beam_size=beam_size,
+
+    status.publish_status("Running subtitle segmentation...")
+    sequences = []
+    for paragraph in paragraphs:
+        segments = segment_text.segment_beamsearch(paragraph["text"], model_spacy, beam_size=beam_size,
                                                ideal_token_len=ideal_token_len,
                                                len_reward_factor=len_reward_factor,
                                                sentence_end_reward_factor=sentence_end_reward_factor,
                                                comma_end_reward_factor=comma_end_reward_factor)
 
-def speechcatcher_asr(media_path, status, language=None, output_format='vtt',
+        tokens = paragraph["tokens"]
+        token_timestamps = paragraph["token_timestamps"]
+
+        start_token_idx = 0
+        end_token_idx = 0
+
+        for segment in segments:
+            # iterate through tokens to find the start and end indices
+            # note that the start position should be the end of the last segment
+            start_token_idx = end_token_idx
+            remaining_text = segment
+
+            while remaining_text:
+                token = tokens[end_token_idx].replace('▁',' ')
+                if remaining_text.startswith(token):
+                    remaining_text = remaining_text[len(token):]
+                    end_token_idx += 1
+                elif remaining_text.startswith(token.replace(' ','')):
+                    remaining_text = remaining_text[len(token.replace(' ','')):]
+                    end_token_idx += 1
+                else:
+                    # Handle cases where the segment doesn't perfectly match token boundaries (todo)
+                    end_token_idx += 1
+                    print("Warning, segment overflow")
+
+            # get the timestamps for the start and end tokens
+            start_timestamp = token_timestamps[start_token_idx]
+            end_timestamp = token_timestamps[end_token_idx - 1]
+            segment_info = (segment, start_timestamp, end_timestamp)
+
+            sequences.append(segment_info)
+    return sequences
+
+def speechcatcher_asr(media_path, status, language=None,
                       model_short_tag='de_streaming_transformer_xl',
                       chunk_length=8192, num_processes=-1, tmp_dir='./tmp/'):
 
@@ -78,5 +115,9 @@ def speechcatcher_asr(media_path, status, language=None, output_format='vtt',
                                                         num_processes=num_processes, progress=False,
                                                         quiet=True, status=status)
 
-    print(complete_text)
     os.remove(wavfile_path)
+
+    if status:
+        status.publish_status('Finished decoding.')
+
+    return complete_text, paragraphs
