@@ -24,9 +24,9 @@ import segment_text
 import sys
 import traceback
 from speechcatcher import speechcatcher
+import spacy
 
-
-def speechcatcher_vtt_segmentation(paragraphs, model_spacy, beam_size, ideal_token_len, len_reward_factor,
+def speechcatcher_vtt_segmentation(paragraphs, model_spacy_name, beam_size, ideal_token_len, len_reward_factor,
                                    comma_end_reward_factor, sentence_end_reward_factor, status=None):
 
     num_warnings = 0
@@ -34,6 +34,7 @@ def speechcatcher_vtt_segmentation(paragraphs, model_spacy, beam_size, ideal_tok
     if status:
         status.publish_status("Running subtitle segmentation...")
     sequences = []
+    model_spacy = spacy.load(model_spacy_name)
     for paragraph in paragraphs:
         try:
             segments = segment_text.segment_beamsearch(paragraph["text"], model_spacy, beam_size=beam_size,
@@ -70,18 +71,47 @@ def speechcatcher_vtt_segmentation(paragraphs, model_spacy, beam_size, ideal_tok
                     # espnet uses '▁' (Unicode U+2581 Lower One Eighth Block Unicode Character) to denote a space
                     # in a token.
                     token = tokens[end_token_idx].replace('▁',' ')
+                    token_without_space = token.replace(' ', '')
                     if remaining_text.startswith(token):
                         remaining_text = remaining_text[len(token):]
                         end_token_idx += 1
-                    elif remaining_text.startswith(token.replace(' ','')):
-                        remaining_text = remaining_text[len(token.replace(' ','')):]
+                    elif remaining_text.startswith(token_without_space):
+                        remaining_text = remaining_text[len(token_without_space):]
+                        end_token_idx += 1
+                    # recheck if this wasn't just a case mismatch
+                    elif remaining_text.lower().startswith(token.lower()):
+                        remaining_text = remaining_text[len(token):]
+                        end_token_idx += 1
+                    elif remaining_text.lower().startswith(token_without_space.lower()):
+                        remaining_text = remaining_text[len(token_without_space):]
                         end_token_idx += 1
                     else:
-                        # kinda bad handling if the segment doesn't perfectly match token boundaries,
-                        # but we can try to advance the tokens, but something is probably broken if this happens:
-                        end_token_idx += 1
-                        print("Warning, segment overflow")
-                        num_warnings += 1
+                        # Alignment mismatch!
+                        #
+                        # We can try to advance the tokens and/or remove
+                        # characters from the segment test to see if
+                        # we can recover from the mismatch,
+                        # but something is probably broken if this happens:
+
+                        remaining_text_test = remaining_text
+                        jump_chars = 0
+                        found_token = False
+                        while remaining_text_test:
+                            remaining_text_test = remaining_text_test[1:]
+                            jump_chars += 1
+                            if remaining_text_test.startswith(token) or \
+                                    remaining_text_test.startswith(token_without_space):
+                                # we found a matching token
+                                remaining_text = remaining_text[jump_chars:]
+                                found_token = True
+                                break
+                        if found_token:
+                            continue
+                        else:
+                            # try to advance token anyway, give warning
+                            end_token_idx += 1
+                            print("Warning, segment overflow.", f"{segment=}", f"{token=}")
+                            num_warnings += 1
 
                 # get the timestamps for the start and end tokens
                 start_timestamp = token_timestamps[start_token_idx]
