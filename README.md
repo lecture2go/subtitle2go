@@ -2,15 +2,35 @@
 
 Subtitle2go is a fully automatic solution for German video subtitling, currently with a focus on lecture videos. The project uses open source models and scripts for German ASR, automatic punctuation reconstruction and subtitle segmentation. But it should be straight-forward to support other languages as well and PRs are welcome!
 
+Subtitle2go recently added support for multiple ASR engines:
+
+## [Whisper](https://github.com/openai/whisper)
+
+Best quality transcriptions (if you use the 'large' model), many languages, but slow. GPU system recommended. Note: you need our [Lecture2Go fork of Whisper](https://github.com/lecture2go/whisper).
+
+## [Speechcatcher](https://github.com/speechcatcher-asr/speechcatcher) models
+
+Much faster than Whisper and Speechcatcher models are trained on Whisper output (teacher/student training). Recomended for CPU only systems. Only German is supported currently.
+
+Note: you currently need the [timestamps branch version](https://github.com/speechcatcher-asr/speechcatcher/tree/timestamps) of Speechcatcher.
+
+## [Kaldi](https://kaldi-asr.org/) based
+
+These are the fastest models for CPU, but won't receive updates and are less accurate than Speechcatcher or Whisper models, espacially with noisy recordings.
+
 Our German Kaldi models are based on the [kaldi-tuda-de](https://github.com/uhh-lt/kaldi-tuda-de) TDNN-HMM recipe. This is a Large Vocabulary Continuous Speech Recognition (LVCSR) model trained on about 1700h of German speech data.
 
 [rpunct](https://github.com/Felflare/rpunct) is used for punctuation reconstruction (,.?!)
 
 Subtitle2go uses a custom solution for segmentation, with a beam search segmentation algorithm that searches for the best "segmentation path" with user specified criteria such as average length and variance. Punctuation and distances in parsing trees are used to estimate splitting costs.
 
-![Subtitle2Go Pipeline](Pipeline.png)
+![Subtitle2Go Kaldi Pipeline](Pipeline.png)
 
 ## News
+
+### 08.12.2022
+
++ First release of version 2.0, supporting multiple ASR engines: Kaldi, Speechcatcher and Whisper.
 
 ### 02.09.2022
 
