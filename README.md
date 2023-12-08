@@ -54,19 +54,19 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 + Ubuntu 20.04 (other versions may work as well)
 + X86_64 processor
 
-## Installguide
+## Installation guide
 
-This installation guide installs all dependencies, scripts and downloads pre-trained models (Kaldi+punctuator2).
+This installation guide shows you how to install all dependencies, scripts and how to downloads pre-trained models (Kaldi+punctuator2).
 
 ```
-# Ubuntu: make sure you have Python 3.9, its dev package and ffmpeg installed:
+# Ubuntu: make sure you have Python 3.11, its dev package and ffmpeg installed:
 sudo apt-get update
-sudo apt-get install python3.9 python3.9-dev ffmpeg
+sudo apt-get install python3.11 python3.11-dev ffmpeg
 
-# Ubuntu: if python3.9 is not available, you can activate the deadsnakes Python PPA, in order to install python 3.9 through this PPA
+# Ubuntu: if python3.11 is not available, you can activate the deadsnakes Python PPA, in order to install python 3.11 through this PPA
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt-get update
-sudo apt-get install python3.9 python3.9-dev
+sudo apt-get install python3.11 python3.11-dev
 
 # Now clone the subtitle2go package somwhere:
 mkdir ~/projects/
@@ -76,7 +76,7 @@ cd subtitle2go/
 
 # create virtual env and install python dependencies:
 
-virtualenv -p /usr/bin/python3.9 subtitle2go_env
+virtualenv -p /usr/bin/python3.11 subtitle2go_env
 source subtitle2go_env/bin/activate
 pip3 install -r requirements.txt
 python3 -m spacy download de_core_news_lg
