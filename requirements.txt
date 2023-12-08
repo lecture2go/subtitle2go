@@ -15,6 +15,6 @@ simpletransformers
 scipy
 spacy
 torch
-https://ltdata1.informatik.uni-hamburg.de/pykaldi/pykaldi-0.2.2-cp39-cp39-linux_x86_64.whl
 git+https://github.com/bmilde/rpunct
-
+git+https://github.com/lecture2go/whisper
+git+https://github.com/speechcatcher-asr/speechcatcher@timestamps
