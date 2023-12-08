@@ -55,6 +55,11 @@ class output_status():
             json_data = {'message': 'false'}
             r = requests.put(self.callback_url, data=json_data)
 
+    def send_warning(self):
+        if (self.callback_url):
+            json_data = {'message': 'false'}
+            r = requests.put(self.callback_url, data=json_data)
+
     def send_success(self):
         if (self.callback_url):
             json_data = {'message': 'true'}
