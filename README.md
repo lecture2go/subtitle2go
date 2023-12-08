@@ -6,19 +6,19 @@ Subtitle2go recently added support for multiple ASR engines:
 
 ## [Whisper](https://github.com/openai/whisper)
 
-Best quality transcriptions (if you use the 'large' model), many languages, but slow. GPU system recommended. Note: you need our [Lecture2Go fork of Whisper](https://github.com/lecture2go/whisper).
+Best quality transcriptions (if you use the 'large' model), many languages supported, but slow. GPU system recommended. Note: you need our [Lecture2Go fork of Whisper](https://github.com/lecture2go/whisper).
 
 ## [Speechcatcher](https://github.com/speechcatcher-asr/speechcatcher) models
 
-Much faster than Whisper and Speechcatcher models are trained on Whisper output (teacher/student training). Recomended for CPU only systems. Only German is supported currently.
+Much faster than Whisper, recommended for CPU only systems. Speechcatcher models are trained on Whisper output (teacher/student training). Allows for custom segmentation with our segmentation algorithm, you can make longer or shorter subtitle segments depending on your preferences. Only German is currently supported.
 
 Note: you currently need the [timestamps branch version](https://github.com/speechcatcher-asr/speechcatcher/tree/timestamps) of Speechcatcher.
 
-## [Kaldi](https://kaldi-asr.org/) based
+## [Kaldi](https://kaldi-asr.org/) based models
 
 These are the fastest models for CPU, but won't receive updates and are less accurate than Speechcatcher or Whisper models, espacially with noisy recordings.
 
-Our German Kaldi models are based on the [kaldi-tuda-de](https://github.com/uhh-lt/kaldi-tuda-de) TDNN-HMM recipe. This is a Large Vocabulary Continuous Speech Recognition (LVCSR) model trained on about 1700h of German speech data.
+Our German Kaldi models are based on the [kaldi-tuda-de](https://github.com/uhh-lt/kaldi-tuda-de) TDNN-HMM recipe.
 
 [rpunct](https://github.com/Felflare/rpunct) is used for punctuation reconstruction (,.?!)
 
