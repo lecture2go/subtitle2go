@@ -21,6 +21,7 @@ from typing import Iterator, TextIO
 
 import sys
 import whisper
+import traceback
 
 # The write_vtt, write_srt and write_txt functions were replaced in whisper, the new code is a bit annoying
 # and complicates things for no reason
@@ -88,6 +89,7 @@ def whisper_asr(filename, status, language=None, output_format='vtt', model='sma
                 write_srt(result["segments"], file=outfile)
 
     except Exception as e:
+        traceback.print_exc()
         if status:
             status.publish_status(f'Whisper decode failed.')
             status.publish_status(f'Error message is: {e}')

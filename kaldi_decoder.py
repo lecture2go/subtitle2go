@@ -18,8 +18,8 @@
 
 import os
 import sys
-import ffmpeg
 import yaml
+import traceback
 
 kaldi_feature_factor = 3.00151874884282680911
 
@@ -40,6 +40,7 @@ from kaldi.transform import cmvn
 from simple_endpointing import process_wav
 
 from utils import *
+
 
 def kaldi_time_to_seconds(time, seperator, convert_from_kaldi_time=True):
     if convert_from_kaldi_time:
@@ -214,6 +215,7 @@ def asr(filenameS_hash, filename, asr_beamsize=13, asr_max_active=8000, acoustic
     try:
         preprocess_audio(filename, wav_filename)
     except ffmpeg.Error as e:
+        traceback.print_exc()
         if status:
             status.publish_status('Audio extraction failed.')
             status.publish_status(f'Error message is: {e.stderr}')
@@ -230,6 +232,7 @@ def asr(filenameS_hash, filename, asr_beamsize=13, asr_max_active=8000, acoustic
     try:
         segments_filenames, segments_timing = process_wav(wav_filename)
     except Exception as e:
+        traceback.print_exc()
         if status:
             status.publish_status('Audio segmentation failed.')
             status.publish_status(f'Error message is: {e}')
@@ -273,6 +276,7 @@ def asr(filenameS_hash, filename, asr_beamsize=13, asr_max_active=8000, acoustic
             status.publish_status(f'Removed temporary files: {scp_filename=}, {wav_filename=},'
                               f' {spk2utt_filename=}, {segments_filename=}')
     except Exception as e:
+        traceback.print_exc()
         if status:
             status.publish_status(f'Removing files failed.')
             status.publish_status(f'Error message is: {e}')
