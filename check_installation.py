@@ -18,6 +18,7 @@ def import_module(module_name, min_version=None):
         print(f"\033[91m error! {e}\033[0m")
         return False
 
+
 def is_whisper_patched():
     print(f"Checking if engine Whisper is patched to allow for status updates...", end="", flush=True)
     try:
@@ -39,6 +40,7 @@ def is_whisper_patched():
         # Handle any exceptions that may occur during inspection
         print(f"Error checking if Whisper is patched: {e}")
         return False
+
 
 def main():
     parser = argparse.ArgumentParser(description="Check the availability and version of ASR engines.")
