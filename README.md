@@ -28,7 +28,7 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 
 ## News
 
-### 08.12.2022
+### 08.12.2023
 
 + First release of version 2.0, supporting multiple ASR engines: Kaldi, Speechcatcher and Whisper.
 
@@ -93,6 +93,9 @@ python3 -m spacy download en_core_web_lg
 # Download and extract models
 ./download_models.sh
 
+# you can now check if everything is correctly installed by calling the check_installation.py script:
+python3 check_installation.py
+
 ```
 
 ## Optional: redis status updates
@@ -140,48 +143,46 @@ Redis server needs to be running.
 The following arguments are available:
 
 ```
-usage: subtitle2go.py [-h] [-s {vtt,srt}] [-l LANGUAGE] [-m MODEL_YAML]
-                           [--rnn-rescore] [--acoustic scale ACOUSTIC_SCALE]
-                           [--asr-beam-size ASR_BEAM_SIZE]
-                           [--asr-max-active ASR_MAX_ACTIVE]
-                           [--segment-beam-size SEGMENT_BEAM_SIZE]
-                           [--ideal-token-len IDEAL_TOKEN_LEN]
-                           [--len-reward-factor LEN_REWARD_FACTOR]
-                           [--sentence-end-reward_factor SENTENCE_END_REWARD_FACTOR]
-                           [--comma-end-reward-factor COMMA_END_REWARD_FACTOR]
-                           [--with-redis-updates]
-                           filename
+usage: subtitle2go.py [-h] [-e {kaldi,whisper,speechcatcher}] [-s {vtt,srt}] [-l LANGUAGE] [-m MODEL_YAML] [-i ID] [-c CALLBACK_URL] [--rnn-rescore] [--acoustic-scale ACOUSTIC_SCALE] [--asr-beam-size ASR_BEAM_SIZE]
+                      [--asr-max-active ASR_MAX_ACTIVE] [--segment-beam-size SEGMENT_BEAM_SIZE] [--ideal-token-len IDEAL_TOKEN_LEN] [--len-reward-factor LEN_REWARD_FACTOR]
+                      [--sentence-end-reward_factor SENTENCE_END_REWARD_FACTOR] [--comma-end-reward-factor COMMA_END_REWARD_FACTOR] [--with-redis-updates] [--debug DEBUG]
+                      filename
 
 positional arguments:
   filename              The path of the mediafile
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
+  -e {kaldi,whisper,speechcatcher}, --engine {kaldi,whisper,speechcatcher}
+                        The ASR engine to use. One of: kaldi, whisper or speechcatcher.
   -s {vtt,srt}, --subtitle {vtt,srt}
                         The output subtitleformat (vtt or srt). Default=vtt
+  -l LANGUAGE, --language LANGUAGE
+                        Sets the language of the models (de/en/...).With the engine option set to "whisper" you can also use "auto" for automatic language detection.
+  -m MODEL_YAML, --model-yaml MODEL_YAML
+                        Model used for decoding (yaml config for kaldi or model name for other engines).
+  -i ID, --id ID        Manually sets the file id
+  -c CALLBACK_URL, --callback-url CALLBACK_URL
+                        Sets a callback URL to notify when process is finished or something went off
+  --rnn-rescore         Do RNNLM rescoring of the decoder output (only for PyKaldimodels).
+  --acoustic-scale ACOUSTIC_SCALE
+                        ASR decoder option: This is a scale on the acoustic log-probabilities, and is a universally used kludge in HMM-GMM and HMM-DNN systems to account for the correlation between frames.
   --asr-beam-size ASR_BEAM_SIZE
-                        ASR decoder option: controls the beam size in the beam
-                        search. This is a speed / accuracy tradeoff.
+                        ASR decoder option: controls the beam size in the beam search. This is a speed / accuracy tradeoff.
   --asr-max-active ASR_MAX_ACTIVE
-                        ASR decoder option: controls the maximum number of
-                        states that can be active at one time.
+                        ASR decoder option: controls the maximum number of states that can be active at one time.
   --segment-beam-size SEGMENT_BEAM_SIZE
                         What beam size to use for the segmentation search
   --ideal-token-len IDEAL_TOKEN_LEN
                         The ideal length of tokens per segment
   --len-reward-factor LEN_REWARD_FACTOR
-                        How important it is to be close to ideal_token_len,
-                        higher factor = splits are closer to ideal_token_len
+                        How important it is to be close to ideal_token_len, higher factor = splits are closer to ideal_token_len
   --sentence-end-reward_factor SENTENCE_END_REWARD_FACTOR
-                        The weight of the sentence end score in the search.
-                        Higher values make it more likely to always split at
-                        sentence end.
+                        The weight of the sentence end score in the search. Higher values make it more likely to always split at sentence end.
   --comma-end-reward-factor COMMA_END_REWARD_FACTOR
-                        The weight of the comma end score in the search.
-                        Higher values make it more likely to always split at
-                        commas.
-  --with-redis-updates  Update a redis instance about the current progress.  
-                        (This option only shows up if the redis package is available)
+                        The weight of the comma end score in the search. Higher values make it more likely to always split at commas.
+  --with-redis-updates  Update a redis instance about the current progress.
+  --debug DEBUG         Output debug timing information
 ```
 
 ## FAQ
