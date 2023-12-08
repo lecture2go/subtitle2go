@@ -46,7 +46,13 @@ def find_node(common_parent, search_node):
 
 def segment_beamsearch(text, model_spacy, beam_size=10, ideal_token_len=10, len_reward_factor=2.3,
                    sentence_end_reward_factor=0.9, comma_end_reward_factor=0.5, max_lookahead=40, debug_print=False):
-    segment_nlp = spacy.load(model_spacy)
+
+    # if model_spacy is just the model name, then load the model
+    # otherwise assume model_spacy is preloaded outside of this function
+    if type(model_spacy) is str:
+        segment_nlp = spacy.load(model_spacy)
+    else:
+        segment_nlp = model_spacy
     doc = segment_nlp(text)
     doc_parsetree_seqs = []    
 
