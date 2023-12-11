@@ -20,7 +20,7 @@ import argparse
 import scipy
 from scipy.io import wavfile
 import ffmpeg
-import pylab as plt
+
 import math
 from python_speech_features import logfbank
 from scipy.ndimage import gaussian_filter1d
@@ -43,9 +43,10 @@ def process_wav(wav_filename, beam_size=10, ideal_segment_len=1000*4,
     fbank_feat_power_smoothed = gaussian_filter1d(fbank_feat_power, sigma=20) * -1.0
     
     if debug:
+        import pylab as plt
+
         print('min:', fbank_feat_min_power, 'max:', fbank_feat_max_power)
 
-    if debug:
         plt.imshow(fbank_feat[:1000].T, interpolation=None, aspect='auto', origin='lower')
         plt.show()
         plt.plot(fbank_feat_power_smoothed[:1000])
