@@ -299,6 +299,7 @@ if __name__ == '__main__':
         from whisper_decoder import whisper_asr
 
         print("Using Whisper as ASR engine.")
+        
         # Setting language to None means that Whisper will use the first
         # 30 seconds to automatically determine the language
         if language == 'auto':
@@ -321,7 +322,7 @@ if __name__ == '__main__':
 
         # The Speechcatcher srt/vtt output is generated in 3 steps;
         # (1) End-to end ASR (2) Segmentation and alignment of token time stamps to the segmented text
-        # (3)
+        # (3) Generate a VTT or SRT from the segments
         complete_text, paragraphs = speechcatcher_asr(filename, status, language=language,
                                                       model_short_tag=args.model_yaml, num_processes=args.num_procs)
 
