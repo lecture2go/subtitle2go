@@ -30,7 +30,7 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 
 ### 12.12.2023
 
-Small bug fixes and improved support for the Speechcatcher ASR engine.
++ Small bug fixes and improved support for the Speechcatcher ASR engine.
 
 ### 08.12.2023
 
