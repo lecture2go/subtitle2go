@@ -299,7 +299,7 @@ if __name__ == '__main__':
         from whisper_decoder import whisper_asr
 
         print("Using Whisper as ASR engine.")
-        
+
         # Setting language to None means that Whisper will use the first
         # 30 seconds to automatically determine the language
         if language == 'auto':

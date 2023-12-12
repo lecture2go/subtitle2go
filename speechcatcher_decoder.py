@@ -22,6 +22,7 @@ import numpy as np
 import multiprocessing
 import segment_text
 import sys
+import io
 import traceback
 from speechcatcher import speechcatcher
 import spacy
@@ -138,7 +139,7 @@ def speechcatcher_vtt_segmentation(paragraphs, model_spacy_name, beam_size, idea
 
 def speechcatcher_asr(media_path, status, language=None,
                       model_short_tag='de_streaming_transformer_xl',
-                      chunk_length=8192, num_processes=-1, tmp_dir='./tmp/'):
+                      chunk_length=8192, num_processes=-1):
 
     if language is not None and language != '' and language != 'auto' and language != 'ignore':
         if language not in model_short_tag:
@@ -149,12 +150,15 @@ def speechcatcher_asr(media_path, status, language=None,
                 status.publish_status(error_msg)
             sys.exit(-5)
 
+    # Use cpu_count / divided by 2 as default number of processors.
+    # For most processors, this is the number of cores without hyperthreading.
     if num_processes == -1:
         num_processes = multiprocessing.cpu_count() // 2
 
     if status:
         status.publish_status(f'Loading model {model_short_tag}...')
 
+    # Step 1: load the model
     try:
         speech2text = speechcatcher.load_model(speechcatcher.tags[model_short_tag])
     except Exception as e:
@@ -166,18 +170,19 @@ def speechcatcher_asr(media_path, status, language=None,
     if status:
         status.publish_status('Converting input file to 16kHz mono audio...')
 
-    speechcatcher.ensure_dir(tmp_dir)
-    wavfile_path = tmp_dir + hashlib.sha1(media_path.encode("utf-8")).hexdigest() + '.wav'
-
+    # Step 2: convert input file to 16kHz audio (mono)
     try:
-        speechcatcher.convert_inputfile(media_path, wavfile_path)
+        speech_data = speechcatcher.convert_inputfile_inmemory(media_path)
     except Exception as e:
         traceback.print_exc()
         status.publish_status(f'Error, could not read and/or convert input media file. Error message is: {e}')
         status.send_error()
         sys.exit(-9)
 
-    with wave.open(wavfile_path, 'rb') as wavfile_in:
+    # Create an in-memory file-like object
+    wavfile_in_memory = io.BytesIO(speech_data)
+
+    with wave.open(wavfile_in_memory, 'rb') as wavfile_in:
         ch = wavfile_in.getnchannels()
         bits = wavfile_in.getsampwidth()*8
         rate = wavfile_in.getframerate()
@@ -185,6 +190,7 @@ def speechcatcher_asr(media_path, status, language=None,
         buf = wavfile_in.readframes(-1)
         raw_speech_data = np.frombuffer(buf, dtype='int16')
 
+    # make sure wav is in the correct format
     assert(ch == 1)
     assert(bits == 16)
     assert(rate == 16000)
@@ -193,9 +199,11 @@ def speechcatcher_asr(media_path, status, language=None,
         status.publish_status('Starting decoding with Speechcatcher model'
                               f' {model_short_tag} with {num_processes} processes.')
 
+    # Step run the recognition step on 16kHz audio.
     try:
         # speech is a numpy array of dtype='np.int16' (16bit audio with 16kHz sampling rate)
-        complete_text, paragraphs = speechcatcher.recognize(speech2text, raw_speech_data, rate, chunk_length=chunk_length,
+        complete_text, paragraphs = speechcatcher.recognize(speech2text, raw_speech_data, rate,
+                                                            chunk_length=chunk_length,
                                                             num_processes=num_processes, progress=False,
                                                             quiet=True, status=status)
     except Exception as e:
@@ -203,8 +211,6 @@ def speechcatcher_asr(media_path, status, language=None,
         status.publish_status(f'Error, could not decode speech with Speechcatcher. Error message is: {e}')
         status.send_error()
         sys.exit(-10)
-
-    os.remove(wavfile_path)
 
     if status:
         status.publish_status('Finished decoding.')
