@@ -23,6 +23,7 @@ import sys
 
 from utils import output_status, ensure_dir, format_timestamp_str
 
+
 # This creates a segmentation for the subtitles and make sure it can still be mapped to the Kaldi tokenisation
 def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor, comma_end_reward_factor,
                      sentence_end_reward_factor, status):
@@ -82,7 +83,8 @@ def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_fa
 
 
 # Creates the subtitle in the desired subtitleFormat and writes to filenameS (filename stripped) + subtitle suffix
-def create_subtitle(sequences, subtitle_format, filename_without_extension, convert_kaldi_time=False, status=None):
+def create_subtitle(sequences, subtitle_format, filename_without_extension, convert_kaldi_time=False,
+                    subtitle_offset=0.0, status=None):
 
     if status:
         status.publish_status('Start creating subtitle.')
@@ -103,8 +105,10 @@ def create_subtitle(sequences, subtitle_format, filename_without_extension, conv
 
         sequence_counter = 1
         for a in sequences:
-            time_start = format_timestamp_str(a[1], separator, convert_from_kaldi_time=convert_kaldi_time)
-            time_end = format_timestamp_str(a[2], separator, convert_from_kaldi_time=convert_kaldi_time)
+            time_start = format_timestamp_str(a[1], subtitle_offset, separator,
+                                              convert_from_kaldi_time=convert_kaldi_time)
+            time_end = format_timestamp_str(a[2], subtitle_offset, separator,
+                                            convert_from_kaldi_time=convert_kaldi_time)
 
 
             file.write(str(sequence_counter) + '\n')  # number of actual sequence
@@ -136,7 +140,8 @@ def pykaldi_subtitle(status, args, filename, filename_without_extension, filenam
                                  len_reward_factor=args.len_reward_factor,
                                  sentence_end_reward_factor=args.sentence_end_reward_factor,
                                  comma_end_reward_factor=args.comma_end_reward_factor, status=status)
-    create_subtitle(sequences, subtitle_format, filename_without_extension, convert_kaldi_time=True, status=status)
+    create_subtitle(sequences, subtitle_format, filename_without_extension, convert_kaldi_time=True,
+                    subtitle_offset=args.subtitle_offset, status=status)
 
 
 if __name__ == '__main__':
@@ -169,6 +174,9 @@ if __name__ == '__main__':
 
     parser.add_argument('-p', '--num-procs', help='Number of parallel processors (Speechcatcher only)',
                         type=int, default=-1)
+
+    parser.add_argument('-o', '--subtitle-offset', help='Subtitle offset (in seconds)',
+                        type=float, default=None)
 
     parser.add_argument('--rnn-rescore', help='Do RNNLM rescoring of the decoder output (only for PyKaldi'
                                               'models).',
@@ -225,6 +233,12 @@ if __name__ == '__main__':
         'whisper': 'large-v2' 
    }
 
+    subtitle_offset_default = {
+        'kaldi': 0.0,
+        'speechcatcher': -0.1,
+        'whisper': 0.0
+    }
+
     args = parser.parse_args()
 
     if args.model_yaml is None:
@@ -233,6 +247,9 @@ if __name__ == '__main__':
     if args.asr_beam_size is None:
         args.asr_beam_size = beamsize_default.get(args.engine, 13)
         print("Using ASR beamsize:", args.asr_beam_size)
+
+    if args.subtitle_offset is None:
+        args.subtitle_offset = subtitle_offset_default.get(args.engine, 0.0)
 
     filename = args.filename
     filename_without_extension = filename.rpartition('.')[0]
@@ -302,17 +319,21 @@ if __name__ == '__main__':
                 print(f'Language {language} is not set in kaldi_languages.yaml. Exiting.')
                 sys.exit()
 
+        # The Speechcatcher srt/vtt output is generated in 3 steps;
+        # (1) End-to end ASR (2) Segmentation and alignment of token time stamps to the segmented text
+        # (3)
         complete_text, paragraphs = speechcatcher_asr(filename, status, language=language,
-                          model_short_tag=args.model_yaml, num_processes=args.num_procs)
+                                                      model_short_tag=args.model_yaml, num_processes=args.num_procs)
 
         sequences = speechcatcher_vtt_segmentation(paragraphs, model_spacy, beam_size=args.segment_beam_size,
-                                     ideal_token_len=args.ideal_token_len,
-                                     len_reward_factor=args.len_reward_factor,
-                                     sentence_end_reward_factor=args.sentence_end_reward_factor,
-                                     comma_end_reward_factor=args.comma_end_reward_factor,
+                                                   ideal_token_len=args.ideal_token_len,
+                                                   len_reward_factor=args.len_reward_factor,
+                                                   sentence_end_reward_factor=args.sentence_end_reward_factor,
+                                                   comma_end_reward_factor=args.comma_end_reward_factor,
                                                    status=status)
 
-        create_subtitle(sequences, subtitle_format, filename_without_extension, convert_kaldi_time=False, status=status)
+        create_subtitle(sequences, subtitle_format, filename_without_extension, convert_kaldi_time=False,
+                        subtitle_offset=args.subtitle_offset, status=status)
     else:
         print(args.engine, 'is not a valid engine.')
 

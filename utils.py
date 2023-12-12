@@ -22,7 +22,9 @@ import json
 import requests
 import ffmpeg
 
-kaldi_feature_factor = 3. #used to be 3.00151874884282680911
+# used to be 3.00151874884282680911
+kaldi_feature_factor = 3.
+
 
 # status object for sending status messages through redis and callbacks
 class output_status():
@@ -53,19 +55,20 @@ class output_status():
                                                     'status': status}))
 
     def send_error(self):
-        if (self.callback_url):
+        if self.callback_url:
             json_data = {'message': 'false'}
             r = requests.put(self.callback_url, data=json_data)
 
     def send_warning(self):
-        if (self.callback_url):
+        if self.callback_url:
             json_data = {'message': 'false'}
             r = requests.put(self.callback_url, data=json_data)
 
     def send_success(self):
-        if (self.callback_url):
+        if self.callback_url:
             json_data = {'message': 'true'}
             r = requests.put(self.callback_url, data=json_data)
+
 
 # Make sure a fpath directory exists
 def ensure_dir(fpath):
@@ -74,6 +77,7 @@ def ensure_dir(fpath):
         os.makedirs(directory)
 
 
+# preprocess audio into 16kHz wav mono
 def preprocess_audio(filename, wav_filename):
     # Use ffmpeg to convert the input media file (any format!) to 16 kHz wav mono
     (
@@ -85,9 +89,15 @@ def preprocess_audio(filename, wav_filename):
     )
 
 
-def format_timestamp_str(time, seperator, convert_from_kaldi_time=True):
+# format timestamp for vtt/srt output generation
+def format_timestamp_str(time, subtitle_offset, seperator, convert_from_kaldi_time=True):
     if convert_from_kaldi_time:
-        time = time * kaldi_feature_factor / 100
+        time = time * kaldi_feature_factor / 100.
+    time += subtitle_offset
+
+    # make sure time isn't below 0.0 after applying the offset
+    time = max(0.0, time)
+
     time_start = (f'{int(time / 3600):02}:'
                             f'{int(time / 60 % 60):02}:'
                             f'{int(time % 60):02}'
