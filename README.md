@@ -4,19 +4,19 @@ Subtitle2go is a fully automatic solution for German video subtitling, currently
 
 Subtitle2go recently added support for multiple ASR engines:
 
-## [Whisper](https://github.com/openai/whisper)
+## Whisper
 
-Best quality transcriptions (if you use the 'large' model), many languages supported, but slow. GPU system recommended. Note: you need our [Lecture2Go fork of Whisper](https://github.com/lecture2go/whisper).
+[Whisper](https://github.com/openai/whisper) produces high quality transcriptions (if you use the 'large' model family), many languages are supported, but it's very slow on CPUs. A GPU system is recommended. Note: you need our [Lecture2Go fork of Whisper](https://github.com/lecture2go/whisper).
 
-## [Speechcatcher](https://github.com/speechcatcher-asr/speechcatcher) models
+## Speechcatcher
 
-Much faster than Whisper, recommended for CPU only systems. Speechcatcher models are trained on Whisper output (teacher/student training). Allows for custom segmentation with our segmentation algorithm, you can make longer or shorter subtitle segments depending on your preferences. Only German is currently supported.
+[Speechcatcher](https://github.com/speechcatcher-asr/speechcatcher) is much faster than Whisper, recommended for CPU only systems. Speechcatcher models are trained on Whisper output (teacher/student training). Allows for custom segmentation with our segmentation algorithm, you can make longer or shorter subtitle segments depending on your preferences. Only German is currently supported.
 
 Note: you currently need the [timestamps branch version](https://github.com/speechcatcher-asr/speechcatcher/tree/timestamps) of Speechcatcher.
 
-## [Kaldi](https://kaldi-asr.org/) based models
+## Kaldi
 
-These are the fastest models for CPU, but won't receive updates and are less accurate than Speechcatcher or Whisper models, espacially with noisy recordings.
+[Kaldi](https://kaldi-asr.org/) based models are the fastest models for CPU, but won't receive updates anymore and are less accurate than Speechcatcher or Whisper models, espacially with noisy recordings. As it's not an end-to-end model, the output does not include punctuation. We use punctuation reconstruction to add it in a post processing step.
 
 Our German Kaldi models are based on the [kaldi-tuda-de](https://github.com/uhh-lt/kaldi-tuda-de) TDNN-HMM recipe.
 
@@ -27,6 +27,10 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 ![Subtitle2Go Kaldi Pipeline](Pipeline.png)
 
 ## News
+
+### 12.12.2023
+
+Small bug fixes and improved support for the Speechcatcher ASR engine.
 
 ### 08.12.2023
 
