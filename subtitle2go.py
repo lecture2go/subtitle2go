@@ -144,7 +144,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-e', '--engine', help='The ASR engine to use. One of: kaldi, whisper or speechcatcher.',
-                        required=False, default='kaldi', choices=['kaldi', 'whisper', 'speechcatcher'])
+                        required=False, default='speechcatcher', choices=['speechcatcher', 'kaldi', 'whisper'])
 
     # Flag (- and --) arguments
     parser.add_argument('-s', '--subtitle', help='The output subtitleformat (vtt or srt). Default=vtt',
