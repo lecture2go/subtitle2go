@@ -22,6 +22,8 @@ import json
 import requests
 import ffmpeg
 
+kaldi_feature_factor = 3. #used to be 3.00151874884282680911
+
 # status object for sending status messages through redis and callbacks
 class output_status():
     def __init__(self, filename, fn_short_hash, redis=False, callback_url=None):
@@ -81,3 +83,14 @@ def preprocess_audio(filename, wav_filename):
             .overwrite_output()
             .run(quiet=True)
     )
+
+
+def format_timestamp_str(time, seperator, convert_from_kaldi_time=True):
+    if convert_from_kaldi_time:
+        time = time * kaldi_feature_factor / 100
+    time_start = (f'{int(time / 3600):02}:'
+                            f'{int(time / 60 % 60):02}:'
+                            f'{int(time % 60):02}'
+                            f'{seperator}'
+                            f'{int(time * 1000 % 1000):03}')
+    return time_start

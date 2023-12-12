@@ -16,19 +16,17 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-import os
 import sys
 import yaml
 import traceback
 
-kaldi_feature_factor = 3.00151874884282680911
+
 
 # Load Kaldi
-from kaldi.asr import NnetLatticeFasterRecognizer, LatticeLmRescorer, LatticeRnnlmPrunedRescorer
+from kaldi.asr import NnetLatticeFasterRecognizer, LatticeRnnlmPrunedRescorer
 from kaldi.rnnlm import RnnlmComputeStateComputationOptions
 from kaldi.decoder import LatticeFasterDecoderOptions
 from kaldi.lat.functions import ComposeLatticePrunedOptions
-from kaldi.lat.align import read_lexicon_for_word_align
 from kaldi.fstext import SymbolTable, shortestpath, indices_to_symbols
 from kaldi.fstext.utils import get_linear_symbol_sequence
 from kaldi.nnet3 import NnetSimpleComputationOptions
@@ -41,16 +39,6 @@ from simple_endpointing import process_wav
 
 from utils import *
 
-
-def kaldi_time_to_seconds(time, seperator, convert_from_kaldi_time=True):
-    if convert_from_kaldi_time:
-        time = time * kaldi_feature_factor / 100
-    time_start = (f'{int(time / 3600):02}:'
-                            f'{int(time / 60 % 60):02}:'
-                            f'{int(time % 60):02}'
-                            f'{seperator}'
-                            f'{int(time * 1000 % 1000):03}')
-    return time_start
 
 def recognizer(decoder_yaml_opts, models_dir):
     decoder_opts = LatticeFasterDecoderOptions()
@@ -173,8 +161,8 @@ def Kaldi(config_file, scp_filename, spk2utt_filename, segments_filename, do_rnn
             timing[0].extend(result[1][0])
             # start = map(lambda x: int(x + (offset[0] / kaldi_feature_factor)), result[1][1])
             start = [x + (offset[0] / kaldi_feature_factor) for x in result[1][1]]
-            kaldi_time_to_seconds(offset[0] / kaldi_feature_factor, seperator=".")
-            kaldi_time_to_seconds(start[0], seperator=".")
+            format_timestamp_str(offset[0] / kaldi_feature_factor, seperator=".")
+            format_timestamp_str(start[0], seperator=".")
 
             timing[1].extend(start)
             timing[2].extend(result[1][2])
@@ -192,14 +180,14 @@ def Kaldi(config_file, scp_filename, spk2utt_filename, segments_filename, do_rnn
     if debug_word_timing:
         with open('debug_output.txt', 'w') as f:
             for element in vtt:
-                f.write(f'{element[1]} {kaldi_time_to_seconds(element[1], ".")}'
-                        f' {kaldi_time_to_seconds(element[1] + element[2], ".")} {element[2]} {element[0]}\n')
+                f.write(f'{element[1]} {format_timestamp_str(element[1], ".")}'
+                        f' {format_timestamp_str(element[1] + element[2], ".")} {element[2]} {element[0]}\n')
 
     return vtt, did_decode, words
 
 # This is the asr function that converts the videofile, split the video into segments and decodes
-def asr(filenameS_hash, filename, asr_beamsize=13, asr_max_active=8000, acoustic_scale=1.0, lm_scale=0.5,
-         do_rnn_rescore=False, config_file='models/kaldi_tuda_de_nnet3_chain2_de_722k.yaml', status=None):
+def kaldi_asr(filenameS_hash, filename, asr_beamsize=13, asr_max_active=8000, acoustic_scale=1.0, lm_scale=0.5,
+              do_rnn_rescore=False, config_file='models/kaldi_tuda_de_nnet3_chain2_de_722k.yaml', status=None):
 
     print(f"{filenameS_hash=}")
 

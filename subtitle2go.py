@@ -16,17 +16,12 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from kaldi_decoder import asr, kaldi_time_to_seconds
 import yaml
 import argparse
 import segment_text
 import sys
 
-from punctuation import interpunctuation
-from utils import output_status, ensure_dir
-from whisper_decoder import whisper_asr
-from speechcatcher_decoder import speechcatcher_asr, speechcatcher_vtt_segmentation
-
+from utils import output_status, ensure_dir, format_timestamp_str
 
 # This creates a segmentation for the subtitles and make sure it can still be mapped to the Kaldi tokenisation
 def vtt_segmentation(vtt, model_spacy, beam_size, ideal_token_len, len_reward_factor, comma_end_reward_factor,
@@ -108,8 +103,8 @@ def create_subtitle(sequences, subtitle_format, filename_without_extension, conv
 
         sequence_counter = 1
         for a in sequences:
-            time_start = kaldi_time_to_seconds(a[1], separator, convert_from_kaldi_time=convert_kaldi_time)
-            time_end = kaldi_time_to_seconds(a[2], separator, convert_from_kaldi_time=convert_kaldi_time)
+            time_start = format_timestamp_str(a[1], separator, convert_from_kaldi_time=convert_kaldi_time)
+            time_end = format_timestamp_str(a[2], separator, convert_from_kaldi_time=convert_kaldi_time)
 
 
             file.write(str(sequence_counter) + '\n')  # number of actual sequence
@@ -132,9 +127,9 @@ def create_subtitle(sequences, subtitle_format, filename_without_extension, conv
 
 def pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash,
                      subtitle_format):
-    vtt, words = asr(filename_without_extension_hash, filename=filename, asr_beamsize=args.asr_beam_size,
-                     asr_max_active=args.asr_max_active, acoustic_scale=args.acoustic_scale,
-                     do_rnn_rescore=args.rnn_rescore, config_file=model_kaldi, status=status)
+    vtt, words = kaldi_asr(filename_without_extension_hash, filename=filename, asr_beamsize=args.asr_beam_size,
+                           asr_max_active=args.asr_max_active, acoustic_scale=args.acoustic_scale,
+                           do_rnn_rescore=args.rnn_rescore, config_file=model_kaldi, status=status)
     vtt = interpunctuation(vtt, words, filename_without_extension_hash, model_punctuation, uppercase, status=status)
     sequences = vtt_segmentation(vtt, model_spacy, beam_size=args.segment_beam_size,
                                  ideal_token_len=args.ideal_token_len,
@@ -263,6 +258,10 @@ if __name__ == '__main__':
     language = args.language
 
     if args.engine == 'kaldi':
+        # dynamic import
+        from kaldi_decoder import kaldi_asr
+        from punctuation import interpunctuation
+
         print("Using Kaldi as ASR engine.")
         ensure_dir('tmp/')
         with open('kaldi_languages.yaml', 'r') as stream:
@@ -279,6 +278,9 @@ if __name__ == '__main__':
         pykaldi_subtitle(status, args, filename, filename_without_extension, filename_without_extension_hash,
                          subtitle_format)
     elif args.engine == 'whisper':
+        # dynamic import
+        from whisper_decoder import whisper_asr
+
         print("Using Whisper as ASR engine.")
         # Setting language to None means that Whisper will use the first
         # 30 seconds to automatically determine the language
@@ -287,6 +289,9 @@ if __name__ == '__main__':
         whisper_asr(filename, status, language, output_format=args.subtitle, model=args.model_yaml, best_of=5,
                     beam_size=beamsize, condition_on_previous_text=True, fp16=True)
     elif args.engine == 'speechcatcher':
+        # dynamic import
+        from speechcatcher_decoder import speechcatcher_asr, speechcatcher_vtt_segmentation
+
         print("Using Speechcatcher as ASR engine.")
 
         with open('kaldi_languages.yaml', 'r') as stream:
