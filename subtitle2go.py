@@ -172,6 +172,9 @@ if __name__ == '__main__':
                                                      ' finished or something went off', type=str,
                         required=False)
 
+    parser.add_argument('-p', '--num-procs', help='Number of parallel processors (Speechcatcher only)',
+                        type=int, default=-1)
+
     parser.add_argument('--rnn-rescore', help='Do RNNLM rescoring of the decoder output (only for PyKaldi'
                                               'models).',
                         action='store_true', default=False)
@@ -295,7 +298,7 @@ if __name__ == '__main__':
                 sys.exit()
 
         complete_text, paragraphs = speechcatcher_asr(filename, status, language=language,
-                          model_short_tag=args.model_yaml)
+                          model_short_tag=args.model_yaml, num_processes=args.num_procs)
 
         sequences = speechcatcher_vtt_segmentation(paragraphs, model_spacy, beam_size=args.segment_beam_size,
                                      ideal_token_len=args.ideal_token_len,
