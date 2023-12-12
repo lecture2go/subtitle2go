@@ -86,6 +86,16 @@ pip3 install -r requirements.txt
 python3 -m spacy download de_core_news_lg
 python3 -m spacy download en_core_web_lg
 
+# you can now check if all dependencies are correctly installed by calling the check_installation.py script:
+python3 check_installation.py
+
+######################################################################################
+#
+# The steps below are only needed if you would like to run the legacy Kaldi models.
+# Speechcatcher and Whisper download and cache their ASR models at runtime.
+#
+######################################################################################
+
 # Install Kaldi and Intel MKL (see note below if you have a different CPU than Intel)
 
 ./install_mkl.sh
@@ -96,9 +106,6 @@ python3 -m spacy download en_core_web_lg
 
 # Download and extract models
 ./download_models.sh
-
-# you can now check if everything is correctly installed by calling the check_installation.py script:
-python3 check_installation.py
 
 ```
 
