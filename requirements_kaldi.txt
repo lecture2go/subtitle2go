@@ -3,7 +3,7 @@ ffmpeg-python
 flask
 gunicorn
 librosa
-numpy==1.22
+numpy
 pandas
 pdfplumber
 pylab-sdk
