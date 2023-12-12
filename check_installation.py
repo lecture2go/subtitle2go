@@ -50,7 +50,7 @@ def main():
     modules_to_check = [
         {"name": "kaldi_decoder", "min_version": None},
         {"name": "espnet_streaming_decoder", "min_version": "0.1"},
-        {"name": "speechcatcher", "min_version": "0.3.0"},
+        {"name": "speechcatcher", "min_version": "0.3.1"},
         {"name": "speechcatcher_decoder", "min_version": None},
         {"name": "whisper_decoder", "min_version": None}
     ]
