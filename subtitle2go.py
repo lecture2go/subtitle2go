@@ -309,6 +309,9 @@ if __name__ == '__main__':
     elif args.engine == 'speechcatcher':
         # dynamic import
         import torch
+        # Note that we need to set this to 1, otherwise the decoding will hang with num_procs > 1.
+        # It seems that torch threads are interfering with Speechcatcher's
+        # parallelization (ProcessPoolExecutor with concurrent.futures).
         torch.set_num_threads(1)
         from speechcatcher_decoder import speechcatcher_asr, speechcatcher_vtt_segmentation
 
