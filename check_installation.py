@@ -65,7 +65,7 @@ def main():
 
     is_whisper_patched()
 
-    print("Note: you not need all engines to run subtitle2go.py - only the engine(s) that you are planning on using.")
+    print("Note: you do not need all engines to run subtitle2go.py - only the engine(s) that you are planning on using.")
 
 if __name__ == "__main__":
     main()
