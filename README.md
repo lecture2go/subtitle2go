@@ -218,6 +218,30 @@ pip3 install --force-reinstall torch torchaudio --index-url https://download.pyt
 
 (Dec 2023)
 
+### Can I upgrade the engines individually? 
+
+Yes! As some dependencies are directly installed from git, it might be necessary to do a force reinstall:
+
+For Speechcatcher:
+
+```
+pip3 install --force-reinstall --no-deps git+https://github.com/speechcatcher-asr/speechcatcher@timestamps
+```
+
+For Speechcatcher's espnet_streaming_decoder:
+
+```
+pip3 install --force-reinstall --no-deps git+https://github.com/speechcatcher-asr/espnet_streaming_decoder
+```
+
+For Whisper:
+
+```
+pip3 install --force-reinstall --no-deps git+https://github.com/lecture2go/whisper
+```
+
+This would only install the engine module by itself. You may need to leave out the --no-deps, if the dependnencies need to be upgraded too.
+
 ### Error message ImportError: libkaldi-base.so: cannot open shared object file: No such file or directory
 
 You have to load the path.sh into your shell. You need to run:
