@@ -28,7 +28,7 @@ Subtitle2go uses a custom solution for segmentation, with a beam search segmenta
 
 ## News
 
-### 12.12.2023
+### 13.12.2023
 
 + Small bug fixes and improved support for the Speechcatcher ASR engine.
 
@@ -82,6 +82,9 @@ cd subtitle2go/
 
 virtualenv -p /usr/bin/python3.11 subtitle2go_env
 source subtitle2go_env/bin/activate
+# You may need to check https://pytorch.org/ for PyTorch installation instruction
+# E.g. If you need to install PyTorch with a different CUDA version
+pip3 install numpy torch torchaudio 
 pip3 install -r requirements.txt
 python3 -m spacy download de_core_news_lg
 python3 -m spacy download en_core_web_lg
