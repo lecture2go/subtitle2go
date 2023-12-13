@@ -308,6 +308,8 @@ if __name__ == '__main__':
                     beam_size=beamsize, condition_on_previous_text=True, fp16=True)
     elif args.engine == 'speechcatcher':
         # dynamic import
+        import torch
+        torch.set_num_threads(1)
         from speechcatcher_decoder import speechcatcher_asr, speechcatcher_vtt_segmentation
 
         print("Using Speechcatcher as ASR engine.")
