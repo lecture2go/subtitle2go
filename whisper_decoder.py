@@ -62,8 +62,9 @@ def write_txt(transcript: Iterator[dict], file: TextIO):
     for segment in transcript:
         print(segment['text'].strip(), file=file, flush=True)
 
-def whisper_asr(filename, status, language=None, output_format='vtt', model='small', best_of=5, beam_size=5,
-                condition_on_previous_text=True, fp16=True):
+def whisper_asr(filename, status, task='transcribe', language=None, output_format='vtt', model='small', best_of=5, beam_size=5,
+                initial_prompt=None, condition_on_previous_text=True, fp16=True, compression_ratio_threshold=2.4,
+                logprob_threshold=-1., no_speech_threshold=0.6, verbose=False):
     if status:
         status.publish_status('Starting Whisper decode.')
 
@@ -74,12 +75,13 @@ def whisper_asr(filename, status, language=None, output_format='vtt', model='sma
 
     try:
         whisper_model = whisper.load_model(model)
-        result = whisper_model.transcribe(filename, language=language, task='transcribe',
+        result = whisper_model.transcribe(filename, language=language, task=task,
                                           temperature=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
-                              best_of=best_of, beam_size=beam_size, suppress_tokens="-1",
+                              best_of=best_of, beam_size=beam_size, suppress_tokens="-1", initial_prompt=initial_prompt,
                               condition_on_previous_text=condition_on_previous_text, fp16=fp16,
-                              compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=0.6,
-                              verbose=True, status=status)
+                              compression_ratio_threshold=compression_ratio_threshold, logprob_threshold=logprob_threshold,
+                              no_speech_threshold=no_speech_threshold,
+                              verbose=verbose, status=status)
 
         if output_format == 'vtt':
             with open(filename_without_extension + '.vtt', 'w') as outfile:
