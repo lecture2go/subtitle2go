@@ -172,7 +172,7 @@ if __name__ == '__main__':
                                                      ' finished or something went off', type=str,
                         required=False)
 
-    parser.add_argument('-p', '--num-procs', help='Number of parallel processors (Speechcatcher only)',
+    parser.add_argument('-p', '--num-procs', help='Number of parallel processors (Speechcatcher and Whisper only)',
                         type=int, default=-1)
 
     parser.add_argument('-o', '--subtitle-offset', help='Subtitle offset (in seconds)',
@@ -213,6 +213,24 @@ if __name__ == '__main__':
                                                           ' always split at commas.',
                         type=float, default=0.5)
 
+    # Whisper specific options:
+    parser.add_argument('--whisper-task', help='The whisper task: one of either "transcribe" or "translate".',
+                        required=False, default='transcribe', choices=['transcribe', 'translate'])
+
+    parser.add_argument('--no-condition-on-previous-text', help='Disabling condition-on-previous-text will'
+                                                                ' reduce Whispers accuracy, but can sometimes help to '
+                                                                'avoid hallucinations.',
+                        action='store_true', default=False)
+
+    parser.add_argument('--whisper-initial-prompt', help='Initial prompt for the first segment. Can be used to pass in'
+                                                         'useful additional information like an author name, a title,'
+                                                         ' a custom vocabulary etc.',
+                        type=str, default=None)
+
+    parser.add_argument('--whisper-no-speech-threshold', help='Threshold parameter to decide if a segment is speech'
+                                                              'or not speech. Default is 0.6.',
+                        type=float, default=0.6)
+
     parser.add_argument('--with-redis-updates', help='Update a redis instance about the current progress.',
                         action='store_true', default=False)
 
@@ -230,7 +248,7 @@ if __name__ == '__main__':
     engine_model_default = {
         'kaldi':  'models/kaldi_tuda_de_nnet3_chain2_de_900k.yaml',
         'speechcatcher': 'de_streaming_transformer_xl',
-        'whisper': 'large-v2' 
+        'whisper': 'large-v2'
    }
 
     subtitle_offset_default = {
@@ -296,6 +314,10 @@ if __name__ == '__main__':
                          subtitle_format)
     elif args.engine == 'whisper':
         # dynamic import
+        import torch
+        # set num_threads according to how many parallel processors we should use
+        if args.num_procs > 0:
+            torch.set_num_threads(args.num_procs)
         from whisper_decoder import whisper_asr
 
         print("Using Whisper as ASR engine.")
@@ -304,8 +326,11 @@ if __name__ == '__main__':
         # 30 seconds to automatically determine the language
         if language == 'auto':
             language = None
-        whisper_asr(filename, status, language, output_format=args.subtitle, model=args.model_yaml, best_of=5,
-                    beam_size=beamsize, condition_on_previous_text=True, fp16=True)
+        whisper_asr(filename, status=status, task=args.whisper_task, language=language, output_format=args.subtitle,
+                    model=args.model_yaml, best_of=5,
+                    beam_size=beamsize, initial_promp=args.whisper_initial_prompt,
+                    condition_on_previous_text=not args.no_condition_on_previous_text,
+                    fp16=True, no_speech_threshold=args.whisper_no_speech_threshold, verbose=args.debug)
     elif args.engine == 'speechcatcher':
         # dynamic import
         import torch
