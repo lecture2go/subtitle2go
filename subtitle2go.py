@@ -328,7 +328,7 @@ if __name__ == '__main__':
             language = None
         whisper_asr(filename, status=status, task=args.whisper_task, language=language, output_format=args.subtitle,
                     model=args.model_yaml, best_of=5,
-                    beam_size=beamsize, initial_promp=args.whisper_initial_prompt,
+                    beam_size=beamsize, initial_prompt=args.whisper_initial_prompt,
                     condition_on_previous_text=not args.no_condition_on_previous_text,
                     fp16=True, no_speech_threshold=args.whisper_no_speech_threshold, verbose=args.debug)
     elif args.engine == 'speechcatcher':
