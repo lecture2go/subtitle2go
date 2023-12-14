@@ -125,19 +125,39 @@ def start():
 
     filename = request_data['filename']
     language = request_data['language']
-    engine = 'kaldi'
+    engine = 'speechcatcher'
+
+    optional_opts = []
 
     if 'engine' in request_data:
         engine = request_data['engine']
 
-    callback_url = request_data['url'] + "/" + request_data['id']
+    # gather optional opts
+    if 'num_procs' in request_data:
+        optional_opts += ['--num-procs', request_data['num_procs']]
+
+    # gather whisper specific optional options:
+    if engine == 'whisper':
+        if 'whisper_task' in request_data:
+            optional_opts += ['--whisper-task', request_data['whisper_task']]
+
+        if 'whisper_initial_prompt' in request_data:
+            optional_opts += ['--whisper-initial-prompt', request_data['whisper_initial_prompt']]
+
+        if 'no_condition_on_previous_text' in request_data:
+            optional_opts += ['--no-condition-on-previous-text']
+
+        if 'whisper_no_speech_threshold' in request_data:
+            optional_opts += ['--whisper-no-speech-threshold', request_data['whisper_no_speech_threshold']]
+
+    callback_url = request_data['url'] + '/' + request_data['id']
 
     # calculate and return id
     filenameS = filename.rpartition('.')[0]  # Filename without file extension
     filenameS_hash = hex(abs(hash(filenameS)))[2:]
 
     # prepare logging
-    log_file = filename + "_" + request_data['id'] + ".log"
+    log_file = filename + '_' + request_data['id'] + '.log'
 
     # if 'gpu_index' is provided in the request data, we need to set CUDA_VISIBLE_DEVICES.
     if 'gpu_index' in request_data:
@@ -153,29 +173,29 @@ def start():
     with open(log_file, "w+") as out:
         p = subprocess.Popen(
             ["python", "subtitle2go.py", "-e", engine, "-l", language, "--with-redis-updates", "-i", filenameS_hash,
-             "-c", callback_url, filename], stdout=out, stderr=out)
+             "-c", callback_url] + optional_opts + [filename], stdout=out, stderr=out)
 
-    id = str(p.pid) + '_' + filenameS_hash
-    return id
-
+    return str(p.pid) + '_' + filenameS_hash
 
 @app.route('/stop', methods=['POST'])
 def stop():
     request_data = request.get_json()
 
-    subtitle2goId = request_data['speech2TextId']
+    subtitle2go_id = request_data['speech2TextId']
 
-    pid = int(subtitle2goId.split("_")[0]);
+    pid = int(subtitle2go_id.split("_")[0]);
 
     # kill the process if still running
     killed = False
     try:
-        os.kill(pid, signal.SIGKILL)
+        # kill the entire group id, so that fork'd processes are also killed
+        group_pid = os.getpgid(pid)
+        os.killpg(group_pid, signal.SIGKILL)
     except Exception as e:
         pass
     else:
         killed = True
-        del current_jobs[subtitle2goId]
+        del current_jobs[subtitle2go_id]
     return str(killed)
 
 
