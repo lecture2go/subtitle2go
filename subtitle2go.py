@@ -234,7 +234,7 @@ if __name__ == '__main__':
     parser.add_argument('--with-redis-updates', help='Update a redis instance about the current progress.',
                         action='store_true', default=False)
 
-    parser.add_argument('--debug', help='Output debug timing information', default=False)
+    parser.add_argument('--debug', help='Output debug timing information', action='store_true', default=False)
 
     # Positional argument, without (- and --)
     parser.add_argument('filename', help='The path of the mediafile', type=str)
