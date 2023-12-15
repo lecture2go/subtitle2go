@@ -242,7 +242,66 @@ pip3 install --force-reinstall --no-deps git+https://github.com/lecture2go/whisp
 
 This would only install the engine module by itself. You may need to leave out the --no-deps, if the dependnencies need to be upgraded too.
 
+### What is Whisper's task parameter? 
+
+Whisper supports two modes of operation. The default is 'transcribe' and the second mode is 'translate' (any-to-English). See this example, where the the video is in German:
+
+```
+$ python3 subtitle2go.py -e whisper --whisper-task "translate" subtitle2go-test.mp4
+Using ASR beamsize: 5
+Using Whisper as ASR engine.
+self.filename='subtitle2go-test.mp4' self.fn_short_hash='17a23f553078047a' status='Starting Whisper decode.'
+[00:01.000 --> 00:04.000]  Hello and welcome to Lecture to go.
+[00:05.000 --> 00:07.000]  Are you looking for something specific?
+[00:07.000 --> 00:13.000]  In the menu you can navigate to the overview of all public media of a facility.
+[00:14.000 --> 00:17.000]  Do you want to browse? Then look in the video catalog.
+[00:18.000 --> 00:22.000]  There you can filter by faculty, semester and category.
+```
+
+Note that the '--language' / '-l' parameter denotes the source language of the media file. Whisper's translation feature is always translating *into* English. Also note that if you want a subtitle in the original language *and* the English translation of it, you need to run Whisper/Subtitle2go two times. 
+
+### What is an "initial prompt"?
+
+You can use the initial prompt feature to provide additional context or a custom vocabulary (currently Whisper only). This will, for the most part, influence the beginning of decoding. For media files you could also use context information such as the title, author or speaker name's as initial prompt. For example:
+
+```
+$ python3 subtitle2go.py -e whisper --whisper-initial-prompt "Lecture2Go" --whisper-task "translate" subtitle2go-test.mp4
+Using ASR beamsize: 5
+Using Whisper as ASR engine.
+self.filename='subtitle2go-test.mp4' self.fn_short_hash='17a23f553078047a' status='Starting Whisper decode.'
+[00:01.000 --> 00:04.000]  Hello and welcome to Lecture2Go.
+[00:05.000 --> 00:07.000]  Are you looking for something specific?
+[00:07.000 --> 00:13.000]  In the menu you can navigate to the overview of all public media of a facility.
+[00:14.000 --> 00:17.000]  Do you want to browse? Then look in the video catalog.
+[00:18.000 --> 00:22.000]  There you can filter by faculty, semester and category.
+```
+
+### How do I use Whisper's automatic language detection?
+
+You can set language to 'auto':
+
+```
+(subtitle2go_env) me@me-desktop:/scratch/projects/subtitle2go_v2$ python3 subtitle2go.py -e whisper -l auto --whisper-initial-prompt "Lecture2Go" --debug subtitle2go-test.mp4
+Using ASR beamsize: 5
+Using Whisper as ASR engine.
+self.filename='subtitle2go-test.mp4' self.fn_short_hash='263c36edc2801fbb' status='Starting Whisper decode.'
+Detecting language using up to the first 30 seconds. Use `--language` to specify the language
+Detected language: German
+[00:00.000 --> 00:08.880]  Hallo und willkommen bei Lecture2Go. Du suchst etwas Bestimmtes? Im Menü kannst du direkt zur
+[00:08.880 --> 00:14.960]  Übersicht aller öffentlichen Medien einer Einrichtung navigieren. Willst du stöbern?
+[00:14.960 --> 00:21.960]  Dann schau in den Videokatalog. Dort kannst du nach Fakultät, Semester und Kategorie filtern.
+```
+
+Note that only the first 30 seconds are used to determine the language and that the language detection doesn't have 100% accurarcy. 
+
+### Help! I get repeating sentences or words with Whisper. Is this a bug?
+
+Hallucinations and repetition loops can unfortunalty happen with the encoder/decoder architecture. Note that even the Open AI official Whisper API suffers from this problem.
+
+You can try different settings, sometimes it helps to pass '--no-condition-on-previous-text'. Accurarcy might be slightly reduced, as no context information is passed between Whisper's 30 second processing blocks. Note that the initial prompt feature also stops working if you use this option.
+
 ### Error message ImportError: libkaldi-base.so: cannot open shared object file: No such file or directory
+
 
 You have to load the path.sh into your shell. You need to run:
 
