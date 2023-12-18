@@ -17,4 +17,4 @@ spacy
 torch
 requests
 git+https://github.com/lecture2go/whisper
-git+https://github.com/speechcatcher-asr/speechcatcher@timestamps
+git+https://github.com/speechcatcher-asr/speechcatcher
