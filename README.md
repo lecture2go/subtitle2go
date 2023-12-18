@@ -164,9 +164,12 @@ Redis server needs to be running.
 The following arguments are available:
 
 ```
-usage: subtitle2go.py [-h] [-e {kaldi,whisper,speechcatcher}] [-s {vtt,srt}] [-l LANGUAGE] [-m MODEL_YAML] [-i ID] [-c CALLBACK_URL] [--rnn-rescore] [--acoustic-scale ACOUSTIC_SCALE] [--asr-beam-size ASR_BEAM_SIZE]
-                      [--asr-max-active ASR_MAX_ACTIVE] [--segment-beam-size SEGMENT_BEAM_SIZE] [--ideal-token-len IDEAL_TOKEN_LEN] [--len-reward-factor LEN_REWARD_FACTOR]
-                      [--sentence-end-reward_factor SENTENCE_END_REWARD_FACTOR] [--comma-end-reward-factor COMMA_END_REWARD_FACTOR] [--with-redis-updates] [--debug DEBUG]
+usage: subtitle2go.py [-h] [-e {speechcatcher,kaldi,whisper}] [-s {vtt,srt}] [-l LANGUAGE] [-m MODEL_YAML] [-i ID] [-c CALLBACK_URL] [-p NUM_PROCS] [-o SUBTITLE_OFFSET]
+                      [--rnn-rescore] [--acoustic-scale ACOUSTIC_SCALE] [--asr-beam-size ASR_BEAM_SIZE] [--asr-max-active ASR_MAX_ACTIVE]
+                      [--segment-beam-size SEGMENT_BEAM_SIZE] [--ideal-token-len IDEAL_TOKEN_LEN] [--len-reward-factor LEN_REWARD_FACTOR]
+                      [--sentence-end-reward_factor SENTENCE_END_REWARD_FACTOR] [--comma-end-reward-factor COMMA_END_REWARD_FACTOR]
+                      [--whisper-task {transcribe,translate}] [--no-condition-on-previous-text] [--whisper-initial-prompt WHISPER_INITIAL_PROMPT]
+                      [--whisper-no-speech-threshold WHISPER_NO_SPEECH_THRESHOLD] [--with-redis-updates] [--debug]
                       filename
 
 positional arguments:
@@ -174,7 +177,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -e {kaldi,whisper,speechcatcher}, --engine {kaldi,whisper,speechcatcher}
+  -e {speechcatcher,kaldi,whisper}, --engine {speechcatcher,kaldi,whisper}
                         The ASR engine to use. One of: kaldi, whisper or speechcatcher.
   -s {vtt,srt}, --subtitle {vtt,srt}
                         The output subtitleformat (vtt or srt). Default=vtt
@@ -185,9 +188,14 @@ options:
   -i ID, --id ID        Manually sets the file id
   -c CALLBACK_URL, --callback-url CALLBACK_URL
                         Sets a callback URL to notify when process is finished or something went off
+  -p NUM_PROCS, --num-procs NUM_PROCS
+                        Number of parallel processors (Speechcatcher and Whisper only)
+  -o SUBTITLE_OFFSET, --subtitle-offset SUBTITLE_OFFSET
+                        Subtitle offset (in seconds)
   --rnn-rescore         Do RNNLM rescoring of the decoder output (only for PyKaldimodels).
   --acoustic-scale ACOUSTIC_SCALE
-                        ASR decoder option: This is a scale on the acoustic log-probabilities, and is a universally used kludge in HMM-GMM and HMM-DNN systems to account for the correlation between frames.
+                        ASR decoder option: This is a scale on the acoustic log-probabilities, and is a universally used kludge in HMM-GMM and HMM-DNN systems to
+                        account for the correlation between frames.
   --asr-beam-size ASR_BEAM_SIZE
                         ASR decoder option: controls the beam size in the beam search. This is a speed / accuracy tradeoff.
   --asr-max-active ASR_MAX_ACTIVE
@@ -202,8 +210,16 @@ options:
                         The weight of the sentence end score in the search. Higher values make it more likely to always split at sentence end.
   --comma-end-reward-factor COMMA_END_REWARD_FACTOR
                         The weight of the comma end score in the search. Higher values make it more likely to always split at commas.
+  --whisper-task {transcribe,translate}
+                        The whisper task: one of either "transcribe" or "translate".
+  --no-condition-on-previous-text
+                        Disabling condition-on-previous-text will reduce Whispers accuracy, but can sometimes help to avoid hallucinations.
+  --whisper-initial-prompt WHISPER_INITIAL_PROMPT
+                        Initial prompt for the first segment. Can be used to pass inuseful additional information like an author name, a title, a custom vocabulary etc.
+  --whisper-no-speech-threshold WHISPER_NO_SPEECH_THRESHOLD
+                        Threshold parameter to decide if a segment is speechor not speech. Default is 0.6.
   --with-redis-updates  Update a redis instance about the current progress.
-  --debug DEBUG         Output debug timing information
+  --debug               Output debug timing information
 ```
 
 ## FAQ
