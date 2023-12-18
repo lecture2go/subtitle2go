@@ -15,6 +15,7 @@ simpletransformers
 scipy
 spacy
 torch
-requests
+https://www.speechcatcher.net/pykaldi/pykaldi-0.2.2-cp311-cp311-linux_x86_64.whl
+git+https://github.com/bmilde/rpunct
 git+https://github.com/lecture2go/whisper
 git+https://github.com/speechcatcher-asr/speechcatcher@timestamps

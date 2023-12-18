@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #    Copyright 2022 HITeC e.V., Benjamin Milde and Robert Geislinger
+#    Copyright 2023 Lecture2Go, Dr. Benjamin Milde
 #
 #    Licensed under the Apache License, Version 2.0 (the 'License');
 #    you may not use this file except in compliance with the License.
@@ -19,7 +20,7 @@ import argparse
 import scipy
 from scipy.io import wavfile
 import ffmpeg
-import pylab as plt
+
 import math
 from python_speech_features import logfbank
 from scipy.ndimage import gaussian_filter1d
@@ -42,9 +43,10 @@ def process_wav(wav_filename, beam_size=10, ideal_segment_len=1000*4,
     fbank_feat_power_smoothed = gaussian_filter1d(fbank_feat_power, sigma=20) * -1.0
     
     if debug:
+        import pylab as plt
+
         print('min:', fbank_feat_min_power, 'max:', fbank_feat_max_power)
 
-    if debug:
         plt.imshow(fbank_feat[:1000].T, interpolation=None, aspect='auto', origin='lower')
         plt.show()
         plt.plot(fbank_feat_power_smoothed[:1000])
