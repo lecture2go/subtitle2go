@@ -90,8 +90,11 @@ def check_current_load():
 
     subtitle2go_processes = 0
     for p in psutil.process_iter():
-        if "subtitle2go.py" in "".join(p.cmdline()):
-            subtitle2go_processes += 1
+        try:
+            if "subtitle2go.py" in "".join(p.cmdline()):
+                subtitle2go_processes += 1
+        except psutil.ZombieProcess:
+            continue
 
     response = dict()
     response['current_processes'] = subtitle2go_processes
