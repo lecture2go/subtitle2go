@@ -92,7 +92,12 @@ def check_current_load():
     for p in psutil.process_iter():
         try:
             if "subtitle2go.py" in "".join(p.cmdline()):
-                subtitle2go_processes += 1
+                cpu_percent = p.cpu_percent()
+                if cpu_percent>100:
+                    # multithreaded processes which run within process (e.g. whisper)
+                    subtitle2go_processes += math.ceil(cpu_percent/100)
+                else:
+                    subtitle2go_processes += 1
         except psutil.ZombieProcess:
             continue
 
