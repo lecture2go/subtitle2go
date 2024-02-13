@@ -88,15 +88,15 @@ def status_with_id(jobid):
 @app.route('/load')
 def check_current_load():
     max_parallel_processes = 60
-
+    max_parallel_whisper_jobs=2
     subtitle2go_processes = 0
     for p in psutil.process_iter():
         try:
             if "subtitle2go.py" in "".join(p.cmdline()):
-                cpu_percent = p.cpu_percent()
-                if cpu_percent>100:
-                    # multithreaded processes which run within process (e.g. whisper)
-                    subtitle2go_processes += math.ceil(cpu_percent/100)
+                if "whisper" in "".join(p.cmdline()):
+                    # getting the current processes via the cpu usage of whisper may deliver wrong results
+                    # and many parallel whisper jobs slow down the system significantly, restrict to max_parallel_whisper_jobs
+                    subtitle2go_processes += math.ceil(max_parallel_processes/max_parallel_whisper_jobs)
                 else:
                     subtitle2go_processes += 1
         except psutil.ZombieProcess:
@@ -137,14 +137,12 @@ def start():
     engine = 'speechcatcher'
 
     optional_opts = []
-
     if 'engine' in request_data:
         engine = request_data['engine']
 
     # gather optional opts
     if 'num_procs' in request_data:
         optional_opts += ['--num-procs', request_data['num_procs']]
-
     # gather whisper specific optional options:
     if engine == 'whisper':
         if 'whisper_task' in request_data:
