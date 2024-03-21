@@ -93,6 +93,9 @@ def check_current_load():
     for p in psutil.process_iter():
         try:
             if "subtitle2go.py" in "".join(p.cmdline()):
+                # do not count sleeping processes for load
+                if p.status() == "sleeping":
+                    continue
                 if "whisper" in "".join(p.cmdline()):
                     # getting the current processes via the cpu usage of whisper may deliver wrong results
                     # and many parallel whisper jobs slow down the system significantly, restrict to max_parallel_whisper_jobs
@@ -189,22 +192,26 @@ def stop():
     request_data = request.get_json()
 
     subtitle2go_id = request_data['speech2TextId']
+    
+    s_id = subtitle2go_id.split("_")[1];
 
-    pid = int(subtitle2go_id.split("_")[0]);
 
-    # kill the process if still running
-    killed = False
-    try:
-        # kill the entire group id, so that fork'd processes are also killed
-        group_pid = os.getpgid(pid)
-        os.killpg(group_pid, signal.SIGKILL)
-    except Exception as e:
-        pass
-    else:
-        killed = True
-        del current_jobs[subtitle2go_id]
+    for p in psutil.process_iter():
+        try:
+            cmdline_array = "".join(p.cmdline())
+            if "subtitle2go.py" in cmdline_array and s_id in cmdline_array:
+                # kill all processes with id, if still running
+                killed = False
+                try:
+                    os.kill(p.pid, signal.SIGKILL)
+                except Exception as e:
+                    pass
+                else:
+                    killed = True
+        except psutil.ZombieProcess:
+            continue
+    del current_jobs[subtitle2go_id]
     return str(killed)
-
 
 @app.route('/clear')
 def clear_finished():
